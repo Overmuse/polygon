@@ -1,10 +1,13 @@
 use serde_json;
 #[cfg(feature = "ws")]
-use tungstenite;
+use tokio_tungstenite::tungstenite;
 
 
 #[derive(Debug)]
 pub enum Error {
+    UninitializedClient,
+    StreamClosed,
+    ConnectionFailure(String),
     Serde(serde_json::Error),
     #[cfg(feature = "ws")]
     Tungstenite(tungstenite::Error),
