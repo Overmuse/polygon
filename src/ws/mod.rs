@@ -1,7 +1,6 @@
 use crate::errors::{Error, Result};
 use serde::{Serialize, Deserialize};
-use futures_core::stream::Stream;
-use futures_util::{stream::StreamExt, sink::SinkExt};
+use futures::{ready, Stream, StreamExt, SinkExt};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::net::TcpStream;
@@ -34,72 +33,51 @@ struct PolygonResponse {
     message: String,
 }
 
-pub struct Connection {
-    client: Option<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-    url: String,
-    auth_token: String,
-    events: Vec<String>,
-    assets: Vec<String>,
+pub struct WebSocket {
+    inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-impl Connection {
-    pub fn new(auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
-        Self {
-            client: None,
-            url: "wss://alpaca.socket.polygon.io/stocks".to_string(),
-            auth_token,
-            events,
-            assets,
+impl Stream for WebSocket {
+    type Item = Result<Vec<PolygonMessage>>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
+            Some(Ok(item)) => {
+                match item {
+                    Message::Text(txt) => {
+                        let parsed: Result<Vec<PolygonMessage>> = serde_json::from_str(&txt).map_err(|e| Error::from(e));
+                        Poll::Ready(Some(parsed))
+                    },
+                    _ => Poll::Ready(None)
+                }
+            }
+            Some(Err(e)) => {
+                Poll::Ready(Some(Err(Error::Tungstenite(e))))
+            }
+            None => {
+                Poll::Ready(None)
+            }
         }
     }
+}
 
+
+impl WebSocket {
     async fn send_message(&mut self, msg: &str) -> Result<()> {
-        if let Some(client) = &mut self.client {
-            client.send(Message::Text(msg.to_string())).await?;
-            Ok(())
-        } else {
-            Err(Error::UninitializedClient)
-        }
-    }
-
-    async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
-        if let Some(client) = &mut self.client {
-            let resp = client.next().await.ok_or_else(|| Error::StreamClosed)??;
-            let parsed: Vec<PolygonResponse> = serde_json::from_str(resp.to_text()?)?;
-            Ok(parsed)
-        } else {
-            Err(Error::UninitializedClient)
-        }
-    }
-
-    pub async fn connect(&mut self) -> Result<()> {
-        let auth_message = PolygonAction {
-            action: "auth".to_string(),
-            params: self.auth_token.clone(),
-        };
-        let (client, _) = connect_async(&self.url).await?;
-        self.client = Some(client);
-        let parsed = self.read_message().await?;
-        if let PolygonStatus::Connected = parsed[0].status {
-        } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
-        }
-        println!("{:?}", parsed);
-        self.send_message(&serde_json::to_string(&auth_message)?).await?;
-        let parsed = self.read_message().await?;
-        if let PolygonStatus::AuthSuccess = parsed[0].status {
-        } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
-        }
-        println!("{:?}", parsed);
+        self.inner.send(Message::Text(msg.to_string())).await?;
         Ok(())
     }
 
-    pub async fn subscribe(&mut self) -> Result<()> {
-        let subscriptions: Vec<_> = self
-            .events
+    async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
+        let resp = self.inner.next().await.ok_or_else(|| Error::StreamClosed)??;
+        let parsed: Vec<PolygonResponse> = serde_json::from_str(resp.to_text()?)?;
+        Ok(parsed)
+    }
+
+    pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
+        let subscriptions: Vec<_> = events
             .iter()
-            .flat_map(|x| std::iter::repeat(x).zip(self.assets.iter()))
+            .flat_map(|x| std::iter::repeat(x).zip(assets.iter()))
             .map(|(x, y)| format!("{}.{}", x, y))
             .collect();
         let subscription_message = PolygonAction {
@@ -109,16 +87,48 @@ impl Connection {
 
         self.send_message(&serde_json::to_string(&subscription_message)?).await?;
         let parsed = self.read_message().await?;
-        println!("{:?}", parsed);
         Ok(())
     }
 }
 
-impl Stream for Connection {
-    type Item = Result<Message>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.client.unwrap().poll_next()
+pub struct Connection {
+    url: String,
+    auth_token: String,
+    events: Vec<String>,
+    assets: Vec<String>,
+}
+
+impl Connection {
+    pub fn new(auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
+        Self {
+            url: "wss://alpaca.socket.polygon.io/stocks".to_string(),
+            auth_token,
+            events,
+            assets,
+        }
+    }
+
+    pub async fn connect(self) -> Result<WebSocket> {
+        let auth_message = PolygonAction {
+            action: "auth".to_string(),
+            params: self.auth_token.clone(),
+        };
+        let (client, _) = connect_async(&self.url).await?;
+        let mut ws = WebSocket { inner: client };
+        let parsed = ws.read_message().await?;
+        if let PolygonStatus::Connected = parsed[0].status {
+        } else {
+            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
+        }
+        ws.send_message(&serde_json::to_string(&auth_message)?).await?;
+        let parsed = ws.read_message().await?;
+        if let PolygonStatus::AuthSuccess = parsed[0].status {
+        } else {
+            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
+        }
+        ws.subscribe(self.events, self.assets).await?;
+        Ok(ws)
     }
 }
 
@@ -128,8 +138,10 @@ mod test {
 
     #[tokio::test]
     async fn connect() {
-        let mut c = Connection::new("AKJJIS846R9E4H9NQLHJ".into(), vec!["T".to_string()], vec!["AAPL".to_string()]);
-        c.connect().await.unwrap();
-        c.subscribe().await.unwrap();
+        let c = Connection::new("AKJJIS846R9E4H9NQLHJ".into(), vec!["T".to_string()], vec!["AAPL".to_string()]);
+        let mut ws = c.connect().await.unwrap();
+        while let Some(msg) = ws.next().await {
+            println!("{:?}", msg)
+        }
     }
 }
