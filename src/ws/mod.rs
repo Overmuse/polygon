@@ -48,7 +48,10 @@ impl Stream for WebSocket {
                         let parsed: Result<Vec<PolygonMessage>> = serde_json::from_str(&txt).map_err(|e| Error::from(e));
                         Poll::Ready(Some(parsed))
                     },
-                    _ => Poll::Ready(None)
+                    x => {
+                        println!("{:?}", x);
+                        Poll::Pending
+                    }
                 }
             }
             Some(Err(e)) => {
