@@ -1,9 +1,15 @@
 use crate::errors::{Error, Result};
 use serde::{Serialize, Deserialize};
+use futures_core::stream::Stream;
 use futures_util::{stream::StreamExt, sink::SinkExt};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_tungstenite::tungstenite::Message;
+
+pub mod types;
+use types::*;
 
 #[derive(Serialize)]
 struct PolygonAction {
@@ -105,6 +111,14 @@ impl Connection {
         let parsed = self.read_message().await?;
         println!("{:?}", parsed);
         Ok(())
+    }
+}
+
+impl Stream for Connection {
+    type Item = Result<Message>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.client.unwrap().poll_next()
     }
 }
 

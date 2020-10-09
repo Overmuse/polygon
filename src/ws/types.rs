@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-
+use serde_repr::*;
 
 fn default_conditions() -> Vec<u8> {
     Vec::new()
