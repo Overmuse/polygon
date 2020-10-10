@@ -48,8 +48,9 @@ impl Stream for WebSocket {
                         let parsed: Result<Vec<PolygonMessage>> = serde_json::from_str(&txt).map_err(|e| Error::from(e));
                         Poll::Ready(Some(parsed))
                     },
-                    x => {
-                        println!("{:?}", x);
+                    _ => {
+                        // Non Text message received, immediately schedule re-poll
+                        cx.waker().wake_by_ref();
                         Poll::Pending
                     }
                 }
