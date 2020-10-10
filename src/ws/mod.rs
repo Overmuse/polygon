@@ -8,7 +8,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_tungstenite::tungstenite::Message;
 
 pub mod types;
-use types::*;
+pub use types::*;
 
 #[derive(Serialize)]
 struct PolygonAction {
