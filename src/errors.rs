@@ -1,7 +1,5 @@
-use serde_json;
 #[cfg(feature = "ws")]
 use tokio_tungstenite::tungstenite;
-
 
 #[derive(Debug)]
 pub enum Error {
