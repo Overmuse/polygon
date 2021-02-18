@@ -3,6 +3,14 @@ on: [push, pull_request]
 name: Continuous integration
 
 jobs:
+  cancel-previous:
+    name: Cancel Previous Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel actions
+        uses: styfle/cancel-workflow-action@0.8.0
+        with:
+          access_token: ${{ github.token }}
   check:
     name: Check
     runs-on: ubuntu-latest
