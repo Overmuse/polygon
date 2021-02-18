@@ -136,17 +136,4 @@ impl Connection {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[tokio::test]
-    async fn connect() {
-        let c = Connection::new(
-            "AKJJIS846R9E4H9NQLHJ".into(),
-            vec!["T".to_string()],
-            vec!["AAPL".to_string()],
-        );
-        let mut ws = c.connect().await.unwrap();
-        while let Some(msg) = ws.next().await {
-            println!("{:?}", msg)
-        }
-    }
 }
