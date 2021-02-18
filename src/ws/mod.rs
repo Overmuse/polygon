@@ -1,11 +1,11 @@
 use crate::errors::{Error, Result};
-use serde::{Serialize, Deserialize};
-use futures::{ready, Stream, StreamExt, SinkExt};
+use futures::{ready, SinkExt, Stream, StreamExt};
+use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::net::TcpStream;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 pub mod types;
 pub use types::*;
@@ -45,9 +45,10 @@ impl Stream for WebSocket {
             Some(Ok(item)) => {
                 match item {
                     Message::Text(txt) => {
-                        let parsed: Result<Vec<PolygonMessage>> = serde_json::from_str(&txt).map_err(|e| Error::from(e));
+                        let parsed: Result<Vec<PolygonMessage>> =
+                            serde_json::from_str(&txt).map_err(Error::from);
                         Poll::Ready(Some(parsed))
-                    },
+                    }
                     _ => {
                         // Non Text message received, immediately schedule re-poll
                         cx.waker().wake_by_ref();
@@ -55,16 +56,11 @@ impl Stream for WebSocket {
                     }
                 }
             }
-            Some(Err(e)) => {
-                Poll::Ready(Some(Err(Error::Tungstenite(e))))
-            }
-            None => {
-                Poll::Ready(None)
-            }
+            Some(Err(e)) => Poll::Ready(Some(Err(Error::Tungstenite(e)))),
+            None => Poll::Ready(None),
         }
     }
 }
-
 
 impl WebSocket {
     async fn send_message(&mut self, msg: &str) -> Result<()> {
@@ -73,7 +69,7 @@ impl WebSocket {
     }
 
     async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
-        let resp = self.inner.next().await.ok_or_else(|| Error::StreamClosed)??;
+        let resp = self.inner.next().await.ok_or(Error::StreamClosed)??;
         let parsed: Vec<PolygonResponse> = serde_json::from_str(resp.to_text()?)?;
         Ok(parsed)
     }
@@ -89,12 +85,12 @@ impl WebSocket {
             params: subscriptions.join(","),
         };
 
-        self.send_message(&serde_json::to_string(&subscription_message)?).await?;
-        let parsed = self.read_message().await?;
+        self.send_message(&serde_json::to_string(&subscription_message)?)
+            .await?;
+        let _parsed = self.read_message().await?;
         Ok(())
     }
 }
-
 
 pub struct Connection {
     url: String,
@@ -123,13 +119,14 @@ impl Connection {
         let parsed = ws.read_message().await?;
         if let PolygonStatus::Connected = parsed[0].status {
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
+            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
         }
-        ws.send_message(&serde_json::to_string(&auth_message)?).await?;
+        ws.send_message(&serde_json::to_string(&auth_message)?)
+            .await?;
         let parsed = ws.read_message().await?;
         if let PolygonStatus::AuthSuccess = parsed[0].status {
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()))
+            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
         }
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)
@@ -139,13 +136,4 @@ impl Connection {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[tokio::test]
-    async fn connect() {
-        let c = Connection::new("AKJJIS846R9E4H9NQLHJ".into(), vec!["T".to_string()], vec!["AAPL".to_string()]);
-        let mut ws = c.connect().await.unwrap();
-        while let Some(msg) = ws.next().await {
-            println!("{:?}", msg)
-        }
-    }
 }
