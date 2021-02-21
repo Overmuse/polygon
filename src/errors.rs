@@ -1,27 +1,21 @@
+use thiserror::Error;
+
 #[cfg(feature = "ws")]
 use tokio_tungstenite::tungstenite;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("Client has not yet been initialized.")]
     UninitializedClient,
+    #[error("WebSocket stream has been closed")]
     StreamClosed,
+    #[error("Failed to connect: {0}")]
     ConnectionFailure(String),
-    Serde(serde_json::Error),
+    #[error("Serde error: {0}")]
+    Serde(#[from] serde_json::Error),
     #[cfg(feature = "ws")]
-    Tungstenite(tungstenite::Error),
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(e: serde_json::Error) -> Self {
-        Self::Serde(e)
-    }
-}
-
-#[cfg(feature = "ws")]
-impl From<tungstenite::Error> for Error {
-    fn from(e: tungstenite::Error) -> Self {
-        Self::Tungstenite(e)
-    }
+    #[error("Tungstenite error: {0}")]
+    Tungstenite(#[from] tungstenite::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
