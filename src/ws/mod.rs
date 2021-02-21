@@ -87,7 +87,6 @@ impl WebSocket {
 
         self.send_message(&serde_json::to_string(&subscription_message)?)
             .await?;
-        let _parsed = self.read_message().await?;
         Ok(())
     }
 }
