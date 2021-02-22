@@ -106,7 +106,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
         Self {
-            url: "wss://alpaca.socket.polygon.io/stocks".to_string(),
+            url: "wss://socket.polygon.io/stocks".to_string(),
             auth_token,
             events,
             assets,
