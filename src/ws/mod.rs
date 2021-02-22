@@ -10,8 +10,8 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 pub mod types;
 pub use types::*;
 
-#[derive(Serialize)]
-struct PolygonAction {
+#[derive(Serialize, Debug)]
+pub struct PolygonAction {
     action: String,
     params: String,
 }
@@ -46,7 +46,7 @@ impl Stream for WebSocket {
                 match item {
                     Message::Text(txt) => {
                         let parsed: Result<Vec<PolygonMessage>> =
-                            serde_json::from_str(&txt).map_err(Error::from);
+                            serde_json::from_str(&txt).map_err(|_| Error::Parse(txt));
                         Poll::Ready(Some(parsed))
                     }
                     _ => {
@@ -70,7 +70,9 @@ impl WebSocket {
 
     async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
         let resp = self.inner.next().await.ok_or(Error::StreamClosed)??;
-        let parsed: Vec<PolygonResponse> = serde_json::from_str(resp.to_text()?)?;
+        let txt = resp.to_text()?;
+        let parsed: Vec<PolygonResponse> =
+            serde_json::from_str(txt).map_err(|_| Error::Parse(txt.to_string()))?;
         Ok(parsed)
     }
 
@@ -85,8 +87,11 @@ impl WebSocket {
             params: subscriptions.join(","),
         };
 
-        self.send_message(&serde_json::to_string(&subscription_message)?)
-            .await?;
+        self.send_message(
+            &serde_json::to_string(&subscription_message)
+                .map_err(|_| Error::Serialize(subscription_message))?,
+        )
+        .await?;
         Ok(())
     }
 }
@@ -120,8 +125,10 @@ impl Connection {
         } else {
             return Err(Error::ConnectionFailure(parsed[0].message.clone()));
         }
-        ws.send_message(&serde_json::to_string(&auth_message)?)
-            .await?;
+        ws.send_message(
+            &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
+        )
+        .await?;
         let parsed = ws.read_message().await?;
         if let PolygonStatus::AuthSuccess = parsed[0].status {
         } else {
