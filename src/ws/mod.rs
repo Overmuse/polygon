@@ -6,6 +6,7 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tracing::{debug, info};
 
 pub mod types;
 pub use types::*;
@@ -71,6 +72,7 @@ impl WebSocket {
     async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
         let resp = self.inner.next().await.ok_or(Error::StreamClosed)??;
         let txt = resp.to_text()?;
+        debug!("Message received: {}", &txt);
         let parsed: Vec<PolygonResponse> =
             serde_json::from_str(txt).map_err(|_| Error::Parse(txt.to_string()))?;
         Ok(parsed)
@@ -122,6 +124,7 @@ impl Connection {
         let mut ws = WebSocket { inner: client };
         let parsed = ws.read_message().await?;
         if let PolygonStatus::Connected = parsed[0].status {
+            info!("Connected successfully");
         } else {
             return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
@@ -131,6 +134,7 @@ impl Connection {
         .await?;
         let parsed = ws.read_message().await?;
         if let PolygonStatus::AuthSuccess = parsed[0].status {
+            info!("Authorized successfully");
         } else {
             return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
