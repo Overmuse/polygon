@@ -16,7 +16,7 @@ pub struct PolygonAction {
     params: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 enum PolygonStatus {
     Connected,
@@ -25,9 +25,9 @@ enum PolygonStatus {
     AuthFailed,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
-struct PolygonResponse {
+pub struct PolygonResponse {
     ev: String,
     status: PolygonStatus,
     message: String,
@@ -123,7 +123,7 @@ impl Connection {
         let parsed = ws.read_message().await?;
         if let PolygonStatus::Connected = parsed[0].status {
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
+            return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
         ws.send_message(
             &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
@@ -132,7 +132,7 @@ impl Connection {
         let parsed = ws.read_message().await?;
         if let PolygonStatus::AuthSuccess = parsed[0].status {
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
+            return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)

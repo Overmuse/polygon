@@ -1,4 +1,4 @@
-use crate::ws::PolygonAction;
+use crate::ws::{PolygonAction, PolygonResponse};
 use thiserror::Error;
 
 #[cfg(feature = "ws")]
@@ -13,8 +13,8 @@ pub enum Error {
     #[error("WebSocket stream has been closed")]
     StreamClosed,
     #[cfg(feature = "ws")]
-    #[error("Failed to connect: {0}")]
-    ConnectionFailure(String),
+    #[error("Failed to connect: {:?}", 0)]
+    ConnectionFailure(PolygonResponse),
     #[error("Failed to parse message: {0}")]
     Parse(String),
     #[error("Failed to serialize message: {:?}", 0)]
