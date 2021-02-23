@@ -6,17 +6,18 @@ use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tracing::{debug, info};
 
 pub mod types;
 pub use types::*;
 
-#[derive(Serialize)]
-struct PolygonAction {
+#[derive(Serialize, Debug)]
+pub struct PolygonAction {
     action: String,
     params: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 enum PolygonStatus {
     Connected,
@@ -25,9 +26,9 @@ enum PolygonStatus {
     AuthFailed,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
-struct PolygonResponse {
+pub struct PolygonResponse {
     ev: String,
     status: PolygonStatus,
     message: String,
@@ -46,7 +47,7 @@ impl Stream for WebSocket {
                 match item {
                     Message::Text(txt) => {
                         let parsed: Result<Vec<PolygonMessage>> =
-                            serde_json::from_str(&txt).map_err(Error::from);
+                            serde_json::from_str(&txt).map_err(|_| Error::Parse(txt));
                         Poll::Ready(Some(parsed))
                     }
                     _ => {
@@ -70,7 +71,10 @@ impl WebSocket {
 
     async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
         let resp = self.inner.next().await.ok_or(Error::StreamClosed)??;
-        let parsed: Vec<PolygonResponse> = serde_json::from_str(resp.to_text()?)?;
+        let txt = resp.to_text()?;
+        debug!("Message received: {}", &txt);
+        let parsed: Vec<PolygonResponse> =
+            serde_json::from_str(txt).map_err(|_| Error::Parse(txt.to_string()))?;
         Ok(parsed)
     }
 
@@ -85,8 +89,11 @@ impl WebSocket {
             params: subscriptions.join(","),
         };
 
-        self.send_message(&serde_json::to_string(&subscription_message)?)
-            .await?;
+        self.send_message(
+            &serde_json::to_string(&subscription_message)
+                .map_err(|_| Error::Serialize(subscription_message))?,
+        )
+        .await?;
         Ok(())
     }
 }
@@ -101,7 +108,7 @@ pub struct Connection {
 impl Connection {
     pub fn new(auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
         Self {
-            url: "wss://alpaca.socket.polygon.io/stocks".to_string(),
+            url: "wss://socket.polygon.io/stocks".to_string(),
             auth_token,
             events,
             assets,
@@ -109,23 +116,27 @@ impl Connection {
     }
 
     pub async fn connect(self) -> Result<WebSocket> {
-        let auth_message = PolygonAction {
-            action: "auth".to_string(),
-            params: self.auth_token.clone(),
-        };
         let (client, _) = connect_async(&self.url).await?;
         let mut ws = WebSocket { inner: client };
         let parsed = ws.read_message().await?;
         if let PolygonStatus::Connected = parsed[0].status {
+            info!("Connected successfully");
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
+            return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
-        ws.send_message(&serde_json::to_string(&auth_message)?)
-            .await?;
+        let auth_message = PolygonAction {
+            action: "auth".to_string(),
+            params: self.auth_token.clone(),
+        };
+        ws.send_message(
+            &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
+        )
+        .await?;
         let parsed = ws.read_message().await?;
         if let PolygonStatus::AuthSuccess = parsed[0].status {
+            info!("Authorized successfully");
         } else {
-            return Err(Error::ConnectionFailure(parsed[0].message.clone()));
+            return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)

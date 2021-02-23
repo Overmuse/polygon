@@ -66,7 +66,7 @@ pub enum PolygonMessage {
         #[serde(flatten)]
         ask_quote: Option<AskQuote>,
         #[serde(rename = "c")]
-        condition: u8,
+        condition: Option<u8>,
         #[serde(rename = "t")]
         timestamp: u64,
     },
