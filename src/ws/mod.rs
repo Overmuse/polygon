@@ -1,6 +1,5 @@
 use crate::errors::{Error, Result};
 use futures::{ready, SinkExt, Stream, StreamExt};
-use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::net::TcpStream;
@@ -10,29 +9,6 @@ use tracing::{debug, info};
 
 pub mod types;
 pub use types::*;
-
-#[derive(Serialize, Debug)]
-pub struct PolygonAction {
-    action: String,
-    params: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
-enum PolygonStatus {
-    Connected,
-    Success,
-    AuthSuccess,
-    AuthFailed,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub struct PolygonResponse {
-    ev: String,
-    status: PolygonStatus,
-    message: String,
-}
 
 pub struct WebSocket {
     inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
@@ -141,9 +117,4 @@ impl Connection {
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
 }
