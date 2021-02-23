@@ -16,9 +16,6 @@ thiserror = "1.0"
 tokio-tungstenite = { version = "0.13", features = ["stream", "tls"], optional = true }
 tokio = { version = "1.0", default-features = false, features = ["net"], optional = true}
 tracing = "0.1"
-tracing-log = "0.1"
-tracing-subscriber = "0.2"
-tracing-bunyan-formatter = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1.0", default-features = false, features = ["macros"] }
