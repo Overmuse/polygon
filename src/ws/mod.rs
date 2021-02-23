@@ -116,10 +116,6 @@ impl Connection {
     }
 
     pub async fn connect(self) -> Result<WebSocket> {
-        let auth_message = PolygonAction {
-            action: "auth".to_string(),
-            params: self.auth_token.clone(),
-        };
         let (client, _) = connect_async(&self.url).await?;
         let mut ws = WebSocket { inner: client };
         let parsed = ws.read_message().await?;
@@ -128,6 +124,10 @@ impl Connection {
         } else {
             return Err(Error::ConnectionFailure(parsed[0].clone()));
         }
+        let auth_message = PolygonAction {
+            action: "auth".to_string(),
+            params: self.auth_token.clone(),
+        };
         ws.send_message(
             &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
         )
