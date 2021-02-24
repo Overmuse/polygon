@@ -7,7 +7,7 @@ pub struct PolygonAction {
     pub params: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum PolygonStatus {
     Connected,
@@ -28,7 +28,7 @@ fn default_conditions() -> Vec<u8> {
     Vec::new()
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone)]
 #[repr(u8)]
 pub enum Tape {
     A = 1,
@@ -36,7 +36,7 @@ pub enum Tape {
     C = 3,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BidQuote {
     #[serde(rename = "bx")]
     exchange_id: u8,
@@ -46,7 +46,7 @@ pub struct BidQuote {
     size: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AskQuote {
     #[serde(rename = "ax")]
     exchange_id: u8,
@@ -56,11 +56,14 @@ pub struct AskQuote {
     size: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "ev")]
 pub enum PolygonMessage {
     #[serde(rename = "status")]
-    Status { status: String, message: String },
+    Status {
+        status: PolygonStatus,
+        message: String,
+    },
     #[serde(rename = "T")]
     Trade {
         #[serde(rename = "sym")]

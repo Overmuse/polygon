@@ -1,30 +1,45 @@
 use crate::errors::{Error, Result};
 use futures::{ready, SinkExt, Stream, StreamExt};
+use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tracing::{debug, info};
+use tracing::info;
 
 pub mod types;
 pub use types::*;
 
 pub struct WebSocket {
     inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
+    buffer: VecDeque<PolygonMessage>,
 }
 
 impl Stream for WebSocket {
-    type Item = Result<Vec<PolygonMessage>>;
+    type Item = Result<PolygonMessage>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        if !self.buffer.is_empty() {
+            let message = self.buffer.pop_front().expect("Guaranteed to be non-empty");
+            return Poll::Ready(Some(Ok(message)));
+        }
         match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
             Some(Ok(item)) => {
                 match item {
                     Message::Text(txt) => {
                         let parsed: Result<Vec<PolygonMessage>> =
-                            serde_json::from_str(&txt).map_err(|_| Error::Parse(txt));
-                        Poll::Ready(Some(parsed))
+                            serde_json::from_str(&txt).map_err(Error::Serde);
+                        match parsed {
+                            Ok(messages) => {
+                                let to_buffer = &messages[1..];
+                                for msg in to_buffer {
+                                    self.buffer.push_back(msg.clone());
+                                }
+                                Poll::Ready(Some(Ok(messages[0].clone())))
+                            }
+                            Err(e) => Poll::Ready(Some(Err(e))),
+                        }
                     }
                     _ => {
                         // Non Text message received, immediately schedule re-poll
@@ -43,15 +58,6 @@ impl WebSocket {
     async fn send_message(&mut self, msg: &str) -> Result<()> {
         self.inner.send(Message::Text(msg.to_string())).await?;
         Ok(())
-    }
-
-    async fn read_message(&mut self) -> Result<Vec<PolygonResponse>> {
-        let resp = self.inner.next().await.ok_or(Error::StreamClosed)??;
-        let txt = resp.to_text()?;
-        debug!("Message received: {}", &txt);
-        let parsed: Vec<PolygonResponse> =
-            serde_json::from_str(txt).map_err(|_| Error::Parse(txt.to_string()))?;
-        Ok(parsed)
     }
 
     pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
@@ -93,12 +99,17 @@ impl Connection {
 
     pub async fn connect(self) -> Result<WebSocket> {
         let (client, _) = connect_async(&self.url).await?;
-        let mut ws = WebSocket { inner: client };
-        let parsed = ws.read_message().await?;
-        if let PolygonStatus::Connected = parsed[0].status {
-            info!("Connected successfully");
-        } else {
-            return Err(Error::ConnectionFailure(parsed[0].clone()));
+        let mut ws = WebSocket {
+            inner: client,
+            buffer: VecDeque::new(),
+        };
+        let parsed = ws.next().await.ok_or(Error::StreamClosed)??;
+        if let PolygonMessage::Status { status, message } = parsed {
+            if let PolygonStatus::Connected = status {
+                info!("Connected successfully");
+            } else {
+                return Err(Error::ConnectionFailure(message));
+            }
         }
         let auth_message = PolygonAction {
             action: "auth".to_string(),
@@ -108,11 +119,13 @@ impl Connection {
             &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
         )
         .await?;
-        let parsed = ws.read_message().await?;
-        if let PolygonStatus::AuthSuccess = parsed[0].status {
-            info!("Authorized successfully");
-        } else {
-            return Err(Error::ConnectionFailure(parsed[0].clone()));
+        let parsed = ws.next().await.ok_or(Error::StreamClosed)??;
+        if let PolygonMessage::Status { status, message } = parsed {
+            if let PolygonStatus::AuthSuccess = status {
+                info!("Authorized successfully");
+            } else {
+                return Err(Error::ConnectionFailure(message));
+            }
         }
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)
