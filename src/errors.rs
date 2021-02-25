@@ -19,6 +19,8 @@ pub enum Error {
     Serde(#[from] serde_json::Error),
     #[error("Failed to serialize message: {:?}", .0)]
     Serialize(PolygonAction),
+    #[error("Failed to send message: {0}")]
+    Sending(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
