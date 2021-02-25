@@ -1,22 +1,26 @@
 use crate::errors::{Error, Result};
-use futures::{ready, SinkExt, Stream, StreamExt};
+use futures::{ready, Sink, SinkExt, Stream, StreamExt};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::net::TcpStream;
+use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tracing::info;
 
 pub mod types;
 pub use types::*;
 
-pub struct WebSocket {
-    inner: WebSocketStream<MaybeTlsStream<TcpStream>>,
+type TungsteniteResult = std::result::Result<Message, tokio_tungstenite::tungstenite::Error>;
+
+pub struct WebSocket<T>
+where
+    T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin,
+{
+    inner: T,
     buffer: VecDeque<PolygonMessage>,
 }
 
-impl Stream for WebSocket {
+impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> Stream for WebSocket<T> {
     type Item = Result<PolygonMessage>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
@@ -54,9 +58,12 @@ impl Stream for WebSocket {
     }
 }
 
-impl WebSocket {
+impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> WebSocket<T> {
     async fn send_message(&mut self, msg: &str) -> Result<()> {
-        self.inner.send(Message::Text(msg.to_string())).await?;
+        self.inner
+            .send(Message::Text(msg.to_string()))
+            .await
+            .map_err(|_| Error::Sending(msg.to_string()))?;
         Ok(())
     }
 
@@ -88,16 +95,18 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
+    pub fn new(url: String, auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
         Self {
-            url: "wss://socket.polygon.io/stocks".to_string(),
+            url,
             auth_token,
             events,
             assets,
         }
     }
 
-    pub async fn connect(self) -> Result<WebSocket> {
+    pub async fn connect(
+        self,
+    ) -> Result<WebSocket<impl Stream<Item = TungsteniteResult> + Sink<Message> + Unpin>> {
         let (client, _) = connect_async(&self.url).await?;
         let mut ws = WebSocket {
             inner: client,
@@ -129,5 +138,97 @@ impl Connection {
         }
         ws.subscribe(self.events, self.assets).await?;
         Ok(ws)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Connection, PolygonMessage, PolygonStatus};
+    use futures::{SinkExt, StreamExt};
+    use tokio::{
+        io::{AsyncRead, AsyncWrite},
+        net::TcpListener,
+    };
+    use tokio_tungstenite::tungstenite::Message;
+    use tokio_tungstenite::{accept_async, WebSocketStream};
+
+    async fn run_connection<S>(connection: WebSocketStream<S>)
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let mut connection = connection;
+        let connection_message = Message::Text(
+            r#"[{"ev":"status","status":"connected","message":"Connected Successfully"}]"#.into(),
+        );
+        connection
+            .send(connection_message)
+            .await
+            .expect("Failed to send connection_message");
+        let auth_request = connection.next().await.unwrap().unwrap();
+        assert_eq!(
+            auth_request,
+            Message::Text(r#"{"action":"auth","params":"test"}"#.into())
+        );
+        let auth_response = Message::Text(
+            r#"[{"ev":"status","status":"auth_success","message":"authenticated"}]"#.into(),
+        );
+        connection
+            .send(auth_response)
+            .await
+            .expect("Failed to send auth_response");
+        let subscription_request = connection.next().await.unwrap().unwrap();
+        assert_eq!(
+            subscription_request,
+            Message::Text(r#"{"action":"subscribe","params":"T.AAPL,T.TSLA,Q.AAPL,Q.TSLA,A.AAPL,A.TSLA,AM.AAPL,AM.TSLA"}"#.into())
+        );
+        let subscription_response = r#"[
+            {"ev":"status","status":"success","message":"subscribed to: T.AAPL"},
+            {"ev":"status","status":"success","message":"subscribed to: T.TSLA"},
+            {"ev":"status","status":"success","message":"subscribed to: Q.AAPL"},
+            {"ev":"status","status":"success","message":"subscribed to: Q.TSLA"},
+            {"ev":"status","status":"success","message":"subscribed to: A.AAPL"},
+            {"ev":"status","status":"success","message":"subscribed to: A.TSLA"},
+            {"ev":"status","status":"success","message":"subscribed to: AM.AAPL"},
+            {"ev":"status","status":"success","message":"subscribed to: AM.TSLA"}
+        ]"#;
+        connection
+            .send(Message::Text(subscription_response.into()))
+            .await
+            .expect("Failed to send subscription response");
+    }
+
+    #[tokio::test]
+    async fn test_connection() {
+        let (con_tx, con_rx) = futures_channel::oneshot::channel();
+        tokio::spawn(async move {
+            let listener = TcpListener::bind("127.0.0.1:12345").await.unwrap();
+            // Send message when server is ready to start the test
+            con_tx.send(()).unwrap();
+            let (connection, _) = listener.accept().await.expect("No connections to accept");
+            let stream = accept_async(connection).await;
+            let stream = stream.expect("Failed to handshake with connection");
+            run_connection(stream).await;
+        });
+
+        con_rx.await.expect("Server not ready");
+        let connection = Connection::new(
+            "ws://localhost:12345".into(),
+            "test".into(),
+            vec!["T".into(), "Q".into(), "A".into(), "AM".into()],
+            vec!["AAPL".into(), "TSLA".into()],
+        );
+
+        let mut ws = connection.connect().await.unwrap();
+        let subscription_response = ws.next().await.unwrap().unwrap();
+        // only receive one message even though multiple were sent at once
+        assert_eq!(
+            subscription_response,
+            PolygonMessage::Status {
+                status: PolygonStatus::Success,
+                message: "subscribed to: T.AAPL".into()
+            }
+        );
+        // The remaining messages are still in the buffer
+        assert_eq!(ws.buffer.len(), 7);
     }
 }

@@ -17,7 +17,8 @@ tokio = { version = "1.0", default-features = false, features = ["net"], optiona
 tracing = "0.1"
 
 [dev-dependencies]
-tokio = { version = "1.0", default-features = false, features = ["macros"] }
+futures-channel = "0.3"
+tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["ws"]
