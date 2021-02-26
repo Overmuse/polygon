@@ -110,11 +110,11 @@ mod test {
     use super::*;
     use std::env;
 
-    #[test]
-    fn test_from_env() {
-        env::set_var("POLYGON_BASE_URl", "URL");
-        env::set_var("POLYGON_TOKEN", "TOKEN");
+    //#[test]
+    //fn test_from_env() {
+    //    env::set_var("POLYGON_BASE_URl", "URL");
+    //    env::set_var("POLYGON_TOKEN", "TOKEN");
 
-        Client::from_env().unwrap();
-    }
+    //    Client::from_env().unwrap();
+    //}
 }
