@@ -1,3 +1,4 @@
+#[cfg(feature = "ws")]
 use crate::ws::PolygonAction;
 use thiserror::Error;
 
@@ -14,7 +15,6 @@ pub enum Error {
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
-    #[cfg(feature = "rest")]
     #[error("Serde error: {0}")]
     Serde(#[from] serde_json::Error),
 
