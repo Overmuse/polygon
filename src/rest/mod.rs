@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::env;
 
 pub mod reference;
+pub mod stocks;
 
 pub enum RequestBody<T> {
     None,
@@ -103,18 +104,4 @@ impl Client {
             Err(Error::ServerError(status, res.text().await?))
         }
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::env;
-
-    //#[test]
-    //fn test_from_env() {
-    //    env::set_var("POLYGON_BASE_URl", "URL");
-    //    env::set_var("POLYGON_TOKEN", "TOKEN");
-
-    //    Client::from_env().unwrap();
-    //}
 }

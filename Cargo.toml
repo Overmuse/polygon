@@ -19,7 +19,9 @@ tokio = { version = "1.0", default-features = false, features = ["net"], optiona
 tracing = "0.1"
 
 [dev-dependencies]
+env_logger = "0.8"
 futures-channel = "0.3"
+mockito = "0.29"
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [features]
