@@ -19,11 +19,11 @@ pub enum MarketHolidayStatus {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct MarketHoliday {
-    exchange: String,
-    name: String,
+    pub exchange: String,
+    pub name: String,
     #[serde(flatten)]
-    status: MarketHolidayStatus,
-    date: NaiveDate,
+    pub status: MarketHolidayStatus,
+    pub date: NaiveDate,
 }
 
 pub struct GetMarketHolidays;

@@ -50,36 +50,36 @@ impl GetQuotes {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Quote {
-    t: u64,
-    y: u64,
-    f: Option<u64>,
-    q: u32,
-    c: Vec<u32>,
-    i: Option<Vec<u32>>,
+    pub t: u64,
+    pub y: u64,
+    pub f: Option<u64>,
+    pub q: u32,
+    pub c: Vec<u32>,
+    pub i: Option<Vec<u32>>,
     #[serde(rename = "p")]
-    bid_price: f64,
+    pub bid_price: f64,
     #[serde(rename = "x")]
-    bid_exchange: u32,
+    pub bid_exchange: u32,
     #[serde(rename = "s")]
-    bid_size: u32,
+    pub bid_size: u32,
     #[serde(rename = "P")]
-    ask_price: f64,
+    pub ask_price: f64,
     #[serde(rename = "X")]
-    ask_exchange: u32,
+    pub ask_exchange: u32,
     #[serde(rename = "S")]
-    ask_size: u32,
-    z: u8,
+    pub ask_size: u32,
+    pub z: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QuoteWrapper {
-    ticker: String,
-    results_count: u32,
-    db_latency: u32,
-    success: bool,
-    results: Vec<Quote>,
+    pub ticker: String,
+    pub results_count: u32,
+    pub db_latency: u32,
+    pub success: bool,
+    pub results: Vec<Quote>,
 }
 
 impl Request for GetQuotes {
@@ -131,29 +131,29 @@ pub enum SortOrder {
     Desc,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Aggregate {
-    o: f64,
-    h: f64,
-    l: f64,
-    c: f64,
-    v: f64,
-    vw: f64,
-    t: u64,
-    n: u32,
+    pub o: f64,
+    pub h: f64,
+    pub l: f64,
+    pub c: f64,
+    pub v: f64,
+    pub vw: Option<f64>,
+    pub t: u64,
+    pub n: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AggregateWrapper {
-    ticker: String,
-    status: String,
-    adjusted: bool,
+    pub ticker: String,
+    pub status: String,
+    pub adjusted: bool,
     #[serde(rename = "queryCount")]
-    query_count: u32,
+    pub query_count: u32,
     #[serde(rename = "resultsCount")]
-    results_count: u32,
-    request_id: String,
-    results: Vec<Aggregate>,
+    pub results_count: u32,
+    pub request_id: String,
+    pub results: Option<Vec<Aggregate>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

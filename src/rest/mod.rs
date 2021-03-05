@@ -4,6 +4,7 @@ use reqwest::{header::HeaderMap, Client as ReqwestClient, Method, RequestBuilder
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::env;
+use std::sync::Arc;
 
 pub mod reference;
 pub mod stocks;
@@ -54,9 +55,10 @@ impl RequestBuilderExt for RequestBuilder {
 ///
 /// `AlpacaConfig` stores an async Reqwest client as well as the associate
 /// base url for the Alpaca server.
+#[derive(Clone)]
 pub struct Client {
     /// The underlying Reqwest client used for requests.
-    inner: ReqwestClient,
+    inner: Arc<ReqwestClient>,
     /// The url to which the request are sent.
     url: String,
     /// The api token.
@@ -66,7 +68,7 @@ pub struct Client {
 impl Client {
     /// Create a new `Client`.
     pub fn new(url: String, token: String) -> Self {
-        let inner = ReqwestClient::new();
+        let inner = Arc::new(ReqwestClient::new());
 
         Self { inner, url, token }
     }
