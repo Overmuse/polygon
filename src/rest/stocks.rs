@@ -241,7 +241,6 @@ mod test {
 
     #[tokio::test]
     async fn get_aggregate() {
-        let _ = env_logger::try_init();
         let _aggs_mock = mock("GET", "/v2/aggs/ticker/AAPL/range/1/day/2021-03-01/2021-03-01")
             .match_query(Matcher::AllOf(vec![
                     Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()),
