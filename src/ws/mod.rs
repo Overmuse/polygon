@@ -230,5 +230,17 @@ mod test {
         );
         // The remaining messages are still in the buffer
         assert_eq!(ws.buffer.len(), 7);
+
+        let subscription_response = ws.next().await.unwrap().unwrap();
+        // can receive messages from the buffer
+        assert_eq!(
+            subscription_response,
+            PolygonMessage::Status {
+                status: PolygonStatus::Success,
+                message: "subscribed to: T.TSLA".into()
+            }
+        );
+        // The remaining messages are still in the buffer
+        assert_eq!(ws.buffer.len(), 6);
     }
 }
