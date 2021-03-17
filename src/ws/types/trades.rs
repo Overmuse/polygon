@@ -1,6 +1,38 @@
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Trade {
+    #[serde(rename = "sym")]
+    pub symbol: String,
+    #[serde(rename = "x")]
+    pub exchange_id: u8,
+    #[serde(rename = "i")]
+    pub trade_id: String,
+    #[serde(rename = "z")]
+    pub tape: Tape,
+    #[serde(rename = "p")]
+    pub price: f64,
+    #[serde(rename = "s")]
+    pub size: u32,
+    #[serde(
+        rename = "c",
+        default = "default_conditions",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub conditions: Vec<TradeCondition>,
+    #[serde(rename = "t")]
+    pub timestamp: u64,
+}
+
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]
+#[repr(u8)]
+pub enum Tape {
+    A = 1,
+    B = 2,
+    C = 3,
+}
+
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum TradeCondition {
@@ -166,54 +198,26 @@ pub enum TradeCondition {
     QualifiedContingentTrade = 53,
     Errored = 54,
     OpeningReopeningTradeDetail = 55,
-    Placeholder = 56,
-    /// Rule 611, which is the Trade Through Exemption of SEC Regulation NMS, is very lengthy to
-    /// cover in detail. Parties interested in reading the rule in its entirely should type "SEC
-    /// Rule 611" into an internet search engine. This is the portion of the document that is
-    /// pertinent to IB traders, in a nutshell: Typically the trades involved are a multi-component
-    /// trade involving orders for a security and a related derivative, or, in the alternative,
-    /// orders for related securities, that are executed at or near the same time. The SIA
-    /// (Securities Industry Association) notes that the economics of a contingent trade are based
-    /// on the relationship between the prices of the security and the related derivative or
-    /// security, and that the execution of one order is contingent upon the execution of the other
-    /// order.
-    PlaceholderFor611Exempt = 59,
+    IntradayTradeDetail = 56,
+    ShortSaleRestrictionsActivated = 57,
+    ShortSaleRestrictionsContinued = 58,
+    ShortSaleRestrictionsDeactivated = 59,
     /// Any stock that has dropped more than 10% intraday has SSR in effect for that day and the following.
-    SsrInEffect = 60,
+    ShortSaleRestrictionsInEffect = 60,
+    FinancialStatusNormal = 61,
+    FinancialStatusBankrupt = 62,
+    FinancialStatusDeficient = 63,
+    FinancialStatusDelinquent = 64,
+    FinancialStatusBankruptAndDeficient = 65,
+    FinancialStatusBankruptAndDelinquent = 66,
+    FinancialStatusDeficientAndDelinquent = 67,
+    FinancialStatusDeficientDelinquentAndBankrupt = 68,
+    FinancialStatusLiquidation = 69,
+    FinancialStatusCreationsSuspended = 70,
+    FinancialStatusRedemptionsSuspended = 71,
+    FinancialStatusCreationsAndOrRedemptionsSuspended = 72,
 }
 
 fn default_conditions() -> Vec<TradeCondition> {
     Vec::new()
-}
-
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]
-#[repr(u8)]
-pub enum Tape {
-    A = 1,
-    B = 2,
-    C = 3,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Trade {
-    #[serde(rename = "sym")]
-    pub symbol: String,
-    #[serde(rename = "x")]
-    pub exchange_id: u8,
-    #[serde(rename = "i")]
-    pub trade_id: String,
-    #[serde(rename = "z")]
-    pub tape: Tape,
-    #[serde(rename = "p")]
-    pub price: f64,
-    #[serde(rename = "s")]
-    pub size: u32,
-    #[serde(
-        rename = "c",
-        default = "default_conditions",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub conditions: Vec<TradeCondition>,
-    #[serde(rename = "t")]
-    pub timestamp: u64,
 }
