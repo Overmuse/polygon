@@ -12,15 +12,12 @@ pub use types::*;
 
 type TungsteniteResult = std::result::Result<Message, tokio_tungstenite::tungstenite::Error>;
 
-pub struct WebSocket<T>
-where
-    T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin,
-{
+pub struct WebSocket<T> {
     inner: T,
     buffer: VecDeque<PolygonMessage>,
 }
 
-impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> Stream for WebSocket<T> {
+impl<T: Stream<Item = TungsteniteResult> + Unpin> Stream for WebSocket<T> {
     type Item = Result<PolygonMessage>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
@@ -57,16 +54,37 @@ impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> Stream for Web
         }
     }
 }
+impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
+    type Error = T::Error;
 
-impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> WebSocket<T> {
-    async fn send_message(&mut self, msg: &str) -> Result<()> {
-        self.inner
-            .send(Message::Text(msg.to_string()))
-            .await
-            .map_err(|_| Error::Sending(msg.to_string()))?;
-        Ok(())
+    fn poll_ready(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Pin::new(&mut self.inner).poll_ready(cx)
     }
 
+    fn start_send(mut self: Pin<&mut Self>, item: S) -> std::result::Result<(), Self::Error> {
+        let inner_item = Message::Text(item.into());
+        Pin::new(&mut self.inner).start_send(inner_item)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_close(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Pin::new(&mut self.inner).poll_close(cx)
+    }
+}
+
+impl<T: Sink<Message> + Unpin> WebSocket<T> {
     pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
         let subscriptions: Vec<_> = events
             .iter()
@@ -77,12 +95,12 @@ impl<T: Stream<Item = TungsteniteResult> + Sink<Message> + Unpin> WebSocket<T> {
             action: "subscribe".to_string(),
             params: subscriptions.join(","),
         };
+        let subscription_str = serde_json::to_string(&subscription_message)
+            .map_err(|_| Error::Serialize(subscription_message))?;
 
-        self.send_message(
-            &serde_json::to_string(&subscription_message)
-                .map_err(|_| Error::Serialize(subscription_message))?,
-        )
-        .await?;
+        self.send(&subscription_str)
+            .await
+            .map_err(|_| Error::Sending(subscription_str))?;
         Ok(())
     }
 }
@@ -124,10 +142,8 @@ impl Connection {
             action: "auth".to_string(),
             params: self.auth_token.clone(),
         };
-        ws.send_message(
-            &serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?,
-        )
-        .await?;
+        ws.send(&serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?)
+            .await?;
         let parsed = ws.next().await.ok_or(Error::StreamClosed)??;
         if let PolygonMessage::Status { status, message } = parsed {
             if let PolygonStatus::AuthSuccess = status {
