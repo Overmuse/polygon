@@ -110,7 +110,7 @@ mod tests {
                     price: 114.125,
                     size: 100
                 }),
-                condition: Some(0),
+                condition: Some(QuoteCondition::Regular),
                 timestamp: 1536036818784,
             })
         );
