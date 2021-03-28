@@ -7,8 +7,8 @@ use std::fmt;
 // Quotes
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GetQuotes {
-    ticker: String,
+pub struct GetQuotes<'a> {
+    ticker: &'a str,
     date: NaiveDate,
     timestamp: u64,
     #[serde(rename = "timestampLimit")]
@@ -17,10 +17,10 @@ pub struct GetQuotes {
     limit: u32,
 }
 
-impl GetQuotes {
-    pub fn new<S: Into<String>>(ticker: S, date: NaiveDate) -> Self {
+impl<'a> GetQuotes<'a> {
+    pub fn new(ticker: &'a str, date: NaiveDate) -> Self {
         Self {
-            ticker: ticker.into(),
+            ticker,
             date,
             timestamp: 0,
             timestamp_limit: None,
@@ -82,7 +82,7 @@ pub struct QuoteWrapper {
     pub results: Vec<Quote>,
 }
 
-impl Request for GetQuotes {
+impl<'a> Request for GetQuotes<'a> {
     type Body = Self;
     type Response = QuoteWrapper;
 
@@ -157,9 +157,9 @@ pub struct AggregateWrapper {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GetAggregate {
+pub struct GetAggregate<'a> {
     #[serde(rename = "stocksTicker")]
-    ticker: String,
+    ticker: &'a str,
     multiplier: u32,
     timespan: Timespan,
     from: NaiveDate,
@@ -167,10 +167,10 @@ pub struct GetAggregate {
     query: GetAggregateQuery,
 }
 
-impl GetAggregate {
-    pub fn new<S: Into<String>>(ticker: S, from: NaiveDate, to: NaiveDate) -> Self {
+impl<'a> GetAggregate<'a> {
+    pub fn new(ticker: &'a str, from: NaiveDate, to: NaiveDate) -> Self {
         Self {
-            ticker: ticker.into(),
+            ticker,
             multiplier: 1,
             timespan: Timespan::Day,
             from,
@@ -216,7 +216,7 @@ pub struct GetAggregateQuery {
     limit: u32,
 }
 
-impl Request for GetAggregate {
+impl<'a> Request for GetAggregate<'a> {
     type Response = AggregateWrapper;
     type Body = GetAggregateQuery;
 

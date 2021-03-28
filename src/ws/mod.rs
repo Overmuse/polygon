@@ -72,7 +72,7 @@ impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: S) -> std::result::Result<(), Self::Error> {
-        let inner_item = Message::Text(item.into());
+        let inner_item = Message::text(item);
         Pin::new(&mut self.inner).start_send(inner_item)
     }
 
@@ -92,7 +92,7 @@ impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
 }
 
 impl<T: Sink<Message> + Unpin> WebSocket<T> {
-    pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
+    pub async fn subscribe(&mut self, events: &[&str], assets: &[&str]) -> Result<()> {
         let subscriptions: String = events
             .iter()
             .flat_map(|x| std::iter::repeat(x).zip(assets.iter()))
@@ -112,15 +112,20 @@ impl<T: Sink<Message> + Unpin> WebSocket<T> {
     }
 }
 
-pub struct Connection {
-    url: String,
-    auth_token: String,
-    events: Vec<String>,
-    assets: Vec<String>,
+pub struct Connection<'a> {
+    url: &'a str,
+    auth_token: &'a str,
+    events: &'a [&'a str],
+    assets: &'a [&'a str],
 }
 
-impl Connection {
-    pub fn new(url: String, auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
+impl<'a> Connection<'a> {
+    pub fn new(
+        url: &'a str,
+        auth_token: &'a str,
+        events: &'a [&'a str],
+        assets: &'a [&'a str],
+    ) -> Self {
         Self {
             url,
             auth_token,
@@ -132,7 +137,7 @@ impl Connection {
     pub async fn connect(
         self,
     ) -> Result<WebSocket<impl Stream<Item = TungsteniteResult> + Sink<Message> + Unpin>> {
-        let (client, _) = connect_async(&self.url).await?;
+        let (client, _) = connect_async(self.url).await?;
         let mut ws = WebSocket {
             inner: client,
             buffer: VecDeque::new(),
@@ -147,7 +152,7 @@ impl Connection {
         }
         let auth_message = PolygonAction {
             action: "auth".into(),
-            params: self.auth_token.into(),
+            params: Cow::Owned(self.auth_token.to_string()),
         };
         ws.send(&serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?)
             .await?;
@@ -180,8 +185,8 @@ mod test {
         S: AsyncRead + AsyncWrite + Unpin,
     {
         let mut connection = connection;
-        let connection_message = Message::Text(
-            r#"[{"ev":"status","status":"connected","message":"Connected Successfully"}]"#.into(),
+        let connection_message = Message::text(
+            r#"[{"ev":"status","status":"connected","message":"Connected Successfully"}]"#,
         );
         connection
             .send(connection_message)
@@ -190,11 +195,10 @@ mod test {
         let auth_request = connection.next().await.unwrap().unwrap();
         assert_eq!(
             auth_request,
-            Message::Text(r#"{"action":"auth","params":"test"}"#.into())
+            Message::text(r#"{"action":"auth","params":"test"}"#)
         );
-        let auth_response = Message::Text(
-            r#"[{"ev":"status","status":"auth_success","message":"authenticated"}]"#.into(),
-        );
+        let auth_response =
+            Message::text(r#"[{"ev":"status","status":"auth_success","message":"authenticated"}]"#);
         connection
             .send(auth_response)
             .await
@@ -202,7 +206,9 @@ mod test {
         let subscription_request = connection.next().await.unwrap().unwrap();
         assert_eq!(
             subscription_request,
-            Message::Text(r#"{"action":"subscribe","params":"T.AAPL,T.TSLA,Q.AAPL,Q.TSLA,A.AAPL,A.TSLA,AM.AAPL,AM.TSLA"}"#.into())
+            Message::text(
+                r#"{"action":"subscribe","params":"T.AAPL,T.TSLA,Q.AAPL,Q.TSLA,A.AAPL,A.TSLA,AM.AAPL,AM.TSLA"}"#
+            )
         );
         let subscription_response = r#"[
             {"ev":"status","status":"success","message":"subscribed to: T.AAPL"},
@@ -215,7 +221,7 @@ mod test {
             {"ev":"status","status":"success","message":"subscribed to: AM.TSLA"}
         ]"#;
         connection
-            .send(Message::Text(subscription_response.into()))
+            .send(Message::text(subscription_response))
             .await
             .expect("Failed to send subscription response");
     }
@@ -237,8 +243,8 @@ mod test {
         let connection = Connection::new(
             "ws://localhost:12345".into(),
             "test".into(),
-            vec!["T".into(), "Q".into(), "A".into(), "AM".into()],
-            vec!["AAPL".into(), "TSLA".into()],
+            &["T", "Q", "A", "AM"],
+            &["AAPL", "TSLA"],
         );
 
         let mut ws = connection.connect().await.unwrap();
