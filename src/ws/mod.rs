@@ -1,5 +1,7 @@
 use crate::errors::{Error, Result};
 use futures::{ready, Sink, SinkExt, Stream, StreamExt};
+use itertools::Itertools;
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -26,28 +28,33 @@ impl<T: Stream<Item = TungsteniteResult> + Unpin> Stream for WebSocket<T> {
             return Poll::Ready(Some(Ok(message)));
         }
         match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
-            Some(Ok(item)) => {
-                match item {
-                    Message::Text(txt) => {
-                        let parsed: Result<Vec<PolygonMessage>> =
-                            serde_json::from_str(&txt).map_err(Error::Serde);
-                        match parsed {
-                            Ok(messages) => {
-                                let to_buffer = &messages[1..];
-                                for msg in to_buffer {
-                                    self.buffer.push_back(msg.clone());
-                                }
-                                Poll::Ready(Some(Ok(messages[0].clone())))
+            Some(Ok(Message::Text(txt))) => {
+                let parsed: Result<VecDeque<PolygonMessage>> =
+                    serde_json::from_str(&txt).map_err(Error::Serde);
+                match parsed {
+                    Ok(mut messages) => {
+                        let ret = messages.pop_front();
+                        match ret {
+                            Some(msg) => {
+                                self.buffer.append(&mut messages);
+                                Poll::Ready(Some(Ok(msg)))
                             }
-                            Err(e) => Poll::Ready(Some(Err(e))),
+                            None => {
+                                // We received a message without any data for some reason.
+                                // This might never happen, but better safe then sorry!
+                                // Immediately schedule re-poll
+                                cx.waker().wake_by_ref();
+                                Poll::Pending
+                            }
                         }
                     }
-                    _ => {
-                        // Non Text message received, immediately schedule re-poll
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
+                    Err(e) => Poll::Ready(Some(Err(e))),
                 }
+            }
+            Some(Ok(_)) => {
+                // Non Text message received, immediately schedule re-poll
+                cx.waker().wake_by_ref();
+                Poll::Pending
             }
             Some(Err(e)) => Poll::Ready(Some(Err(Error::Tungstenite(e)))),
             None => Poll::Ready(None),
@@ -86,14 +93,14 @@ impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
 
 impl<T: Sink<Message> + Unpin> WebSocket<T> {
     pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
-        let subscriptions: Vec<_> = events
+        let subscriptions: String = events
             .iter()
             .flat_map(|x| std::iter::repeat(x).zip(assets.iter()))
             .map(|(x, y)| format!("{}.{}", x, y))
-            .collect();
+            .join(",");
         let subscription_message = PolygonAction {
-            action: "subscribe".to_string(),
-            params: subscriptions.join(","),
+            action: Cow::Borrowed("subscribe"),
+            params: Cow::Owned(subscriptions),
         };
         let subscription_str = serde_json::to_string(&subscription_message)
             .map_err(|_| Error::Serialize(subscription_message))?;
@@ -139,8 +146,8 @@ impl Connection {
             }
         }
         let auth_message = PolygonAction {
-            action: "auth".to_string(),
-            params: self.auth_token.clone(),
+            action: "auth".into(),
+            params: self.auth_token.into(),
         };
         ws.send(&serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?)
             .await?;

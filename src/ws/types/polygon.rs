@@ -1,10 +1,11 @@
 use super::{aggregates::*, quotes::*, trades::*};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 #[derive(Serialize, Debug)]
 pub struct PolygonAction {
-    pub action: String,
-    pub params: String,
+    pub action: Cow<'static, str>,
+    pub params: Cow<'static, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
