@@ -2,6 +2,7 @@ use crate::errors::{Error, Result};
 use crate::rest::{Request, RequestBuilderExt};
 use futures::TryFutureExt;
 use reqwest::Client as ReqwestClient;
+use std::borrow::Cow;
 use std::env;
 use std::sync::Arc;
 
@@ -10,21 +11,32 @@ use std::sync::Arc;
 /// `AlpacaConfig` stores an async Reqwest client as well as the associate
 /// base url for the Alpaca server.
 #[derive(Clone)]
-pub struct Client {
+pub struct Client<'a> {
     /// The underlying Reqwest client used for requests.
     inner: Arc<ReqwestClient>,
     /// The url to which the request are sent.
-    url: String,
+    url: Cow<'a, str>,
     /// The api token.
-    token: String,
+    token: Cow<'a, str>,
 }
 
-impl Client {
+fn env(variable: &str) -> Result<String> {
+    env::var(variable).map_err(|e| Error::MissingEnv {
+        source: e,
+        variable: variable.into(),
+    })
+}
+
+impl<'a> Client<'a> {
     /// Create a new `Client`.
-    pub fn new(url: String, token: String) -> Self {
+    pub fn new(url: &'a str, token: &'a str) -> Self {
         let inner = Arc::new(ReqwestClient::new());
 
-        Self { inner, url, token }
+        Self {
+            inner,
+            url: Cow::Borrowed(url),
+            token: Cow::Borrowed(token),
+        }
     }
 
     /// Creates a `Client` from environment variables.
@@ -33,9 +45,15 @@ impl Client {
     /// - `POLYGON_BASE_URL`
     /// - `POLYGON_TOKEN`
     pub fn from_env() -> Result<Self> {
-        let url = env::var("POLYGON_BASE_URL")?;
-        let token = env::var("POLYGON_TOKEN")?;
-        Ok(Self::new(url, token))
+        let inner = Arc::new(ReqwestClient::new());
+
+        let url = env("POLYGON_BASE_URL")?;
+        let token = env("POLYGON_TOKEN")?;
+        Ok(Self {
+            inner,
+            url: Cow::Owned(url),
+            token: Cow::Owned(token),
+        })
     }
 
     /// Send a `Request` to Alpaca

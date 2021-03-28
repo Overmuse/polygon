@@ -250,7 +250,9 @@ mod test {
             ]))
             .with_body(r#"{"ticker":"AAPL","status":"OK","queryCount":2,"resultsCount":2,"adjusted":true,"results":[{"v":1.35647456e+08,"vw":74.6099,"o":74.06,"c":75.0875,"h":75.15,"l":73.7975,"t":1577941200000,"n":1}],"request_id":"6a7e466379af0a71039d60cc78e72282"}"#)
             .create();
-        let client = Client::new(mockito::server_url(), "TOKEN".into());
+        let url = mockito::server_url();
+
+        let client = Client::new(&url, "TOKEN");
         let req = GetAggregate::new(
             "AAPL",
             NaiveDate::from_ymd(2021, 3, 1),
@@ -265,7 +267,9 @@ mod test {
             .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
             .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
 
-        let client = Client::new(mockito::server_url(), "TOKEN".into());
+        let url = mockito::server_url();
+
+        let client = Client::new(&url, "TOKEN");
         let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
         client.send(req).await.unwrap();
     }

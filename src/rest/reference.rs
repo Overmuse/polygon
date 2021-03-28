@@ -93,8 +93,9 @@ mod test {
         let _m = mock("GET", "/v1/marketstatus/upcoming")
             .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
             .with_body(r#"[{"exchange":"NYSE","name":"Thanksgiving","date":"2020-11-26","status":"closed"},{"exchange":"NASDAQ","name":"Thanksgiving","date":"2020-11-26","status":"closed"}]"#).create();
+        let url = mockito::server_url();
 
-        let client = Client::new(mockito::server_url(), "TOKEN".into());
+        let client = Client::new(&url, "TOKEN");
         let req = GetMarketHolidays;
         client.send(req).await.unwrap();
     }
@@ -104,8 +105,9 @@ mod test {
         let _m = mock("GET", "/v1/marketstatus/now")
             .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
             .with_body(r#"{"market":"extended-hours","serverTime":"2020-11-10T22:37:37.000Z","exchanges":{"nyse":"extended-hours","nasdaq":"extended-hours","otc":"closed"},"currencies":{"fx":"open","crypto":"open"}}"#).create();
+        let url = mockito::server_url();
 
-        let client = Client::new(mockito::server_url(), "TOKEN".into());
+        let client = Client::new(&url, "TOKEN");
         let req = GetMarketStatus;
         client.send(req).await.unwrap();
     }

@@ -186,7 +186,7 @@ pub enum TradeCondition {
     AsOf = 47,
     AsOfCorrection = 48,
     AsOfCancel = 49,
-    OOB = 50,
+    Oob = 50,
     Summary = 51,
     /// A Sale Condition code used to identify a transaction where the execution of the transaction
     /// is contingent upon some event.
