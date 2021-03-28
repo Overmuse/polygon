@@ -18,14 +18,6 @@ pub enum PolygonStatus {
     MaxConnections,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub struct PolygonResponse {
-    ev: String,
-    pub status: PolygonStatus,
-    pub message: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "ev")]
 pub enum PolygonMessage {
