@@ -1,5 +1,7 @@
 use crate::errors::{Error, Result};
 use futures::{ready, Sink, SinkExt, Stream, StreamExt};
+use itertools::Itertools;
+use std::borrow::Cow;
 use std::collections::VecDeque;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -26,28 +28,33 @@ impl<T: Stream<Item = TungsteniteResult> + Unpin> Stream for WebSocket<T> {
             return Poll::Ready(Some(Ok(message)));
         }
         match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
-            Some(Ok(item)) => {
-                match item {
-                    Message::Text(txt) => {
-                        let parsed: Result<Vec<PolygonMessage>> =
-                            serde_json::from_str(&txt).map_err(Error::Serde);
-                        match parsed {
-                            Ok(messages) => {
-                                let to_buffer = &messages[1..];
-                                for msg in to_buffer {
-                                    self.buffer.push_back(msg.clone());
-                                }
-                                Poll::Ready(Some(Ok(messages[0].clone())))
+            Some(Ok(Message::Text(txt))) => {
+                let parsed: Result<VecDeque<PolygonMessage>> =
+                    serde_json::from_str(&txt).map_err(Error::Serde);
+                match parsed {
+                    Ok(mut messages) => {
+                        let ret = messages.pop_front();
+                        match ret {
+                            Some(msg) => {
+                                self.buffer.append(&mut messages);
+                                Poll::Ready(Some(Ok(msg)))
                             }
-                            Err(e) => Poll::Ready(Some(Err(e))),
+                            None => {
+                                // We received a message without any data for some reason.
+                                // This might never happen, but better safe then sorry!
+                                // Immediately schedule re-poll
+                                cx.waker().wake_by_ref();
+                                Poll::Pending
+                            }
                         }
                     }
-                    _ => {
-                        // Non Text message received, immediately schedule re-poll
-                        cx.waker().wake_by_ref();
-                        Poll::Pending
-                    }
+                    Err(e) => Poll::Ready(Some(Err(e))),
                 }
+            }
+            Some(Ok(_)) => {
+                // Non Text message received, immediately schedule re-poll
+                cx.waker().wake_by_ref();
+                Poll::Pending
             }
             Some(Err(e)) => Poll::Ready(Some(Err(Error::Tungstenite(e)))),
             None => Poll::Ready(None),
@@ -65,7 +72,7 @@ impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: S) -> std::result::Result<(), Self::Error> {
-        let inner_item = Message::Text(item.into());
+        let inner_item = Message::text(item);
         Pin::new(&mut self.inner).start_send(inner_item)
     }
 
@@ -85,15 +92,15 @@ impl<T: Sink<Message> + Unpin, S: Into<String>> Sink<S> for WebSocket<T> {
 }
 
 impl<T: Sink<Message> + Unpin> WebSocket<T> {
-    pub async fn subscribe(&mut self, events: Vec<String>, assets: Vec<String>) -> Result<()> {
-        let subscriptions: Vec<_> = events
+    pub async fn subscribe(&mut self, events: &[&str], assets: &[&str]) -> Result<()> {
+        let subscriptions: String = events
             .iter()
             .flat_map(|x| std::iter::repeat(x).zip(assets.iter()))
             .map(|(x, y)| format!("{}.{}", x, y))
-            .collect();
+            .join(",");
         let subscription_message = PolygonAction {
-            action: "subscribe".to_string(),
-            params: subscriptions.join(","),
+            action: Cow::Borrowed("subscribe"),
+            params: Cow::Owned(subscriptions),
         };
         let subscription_str = serde_json::to_string(&subscription_message)
             .map_err(|_| Error::Serialize(subscription_message))?;
@@ -105,15 +112,20 @@ impl<T: Sink<Message> + Unpin> WebSocket<T> {
     }
 }
 
-pub struct Connection {
-    url: String,
-    auth_token: String,
-    events: Vec<String>,
-    assets: Vec<String>,
+pub struct Connection<'a> {
+    url: &'a str,
+    auth_token: &'a str,
+    events: &'a [&'a str],
+    assets: &'a [&'a str],
 }
 
-impl Connection {
-    pub fn new(url: String, auth_token: String, events: Vec<String>, assets: Vec<String>) -> Self {
+impl<'a> Connection<'a> {
+    pub fn new(
+        url: &'a str,
+        auth_token: &'a str,
+        events: &'a [&'a str],
+        assets: &'a [&'a str],
+    ) -> Self {
         Self {
             url,
             auth_token,
@@ -125,7 +137,7 @@ impl Connection {
     pub async fn connect(
         self,
     ) -> Result<WebSocket<impl Stream<Item = TungsteniteResult> + Sink<Message> + Unpin>> {
-        let (client, _) = connect_async(&self.url).await?;
+        let (client, _) = connect_async(self.url).await?;
         let mut ws = WebSocket {
             inner: client,
             buffer: VecDeque::new(),
@@ -139,8 +151,8 @@ impl Connection {
             }
         }
         let auth_message = PolygonAction {
-            action: "auth".to_string(),
-            params: self.auth_token.clone(),
+            action: "auth".into(),
+            params: Cow::Owned(self.auth_token.to_string()),
         };
         ws.send(&serde_json::to_string(&auth_message).map_err(|_| Error::Serialize(auth_message))?)
             .await?;
@@ -173,8 +185,8 @@ mod test {
         S: AsyncRead + AsyncWrite + Unpin,
     {
         let mut connection = connection;
-        let connection_message = Message::Text(
-            r#"[{"ev":"status","status":"connected","message":"Connected Successfully"}]"#.into(),
+        let connection_message = Message::text(
+            r#"[{"ev":"status","status":"connected","message":"Connected Successfully"}]"#,
         );
         connection
             .send(connection_message)
@@ -183,11 +195,10 @@ mod test {
         let auth_request = connection.next().await.unwrap().unwrap();
         assert_eq!(
             auth_request,
-            Message::Text(r#"{"action":"auth","params":"test"}"#.into())
+            Message::text(r#"{"action":"auth","params":"test"}"#)
         );
-        let auth_response = Message::Text(
-            r#"[{"ev":"status","status":"auth_success","message":"authenticated"}]"#.into(),
-        );
+        let auth_response =
+            Message::text(r#"[{"ev":"status","status":"auth_success","message":"authenticated"}]"#);
         connection
             .send(auth_response)
             .await
@@ -195,7 +206,9 @@ mod test {
         let subscription_request = connection.next().await.unwrap().unwrap();
         assert_eq!(
             subscription_request,
-            Message::Text(r#"{"action":"subscribe","params":"T.AAPL,T.TSLA,Q.AAPL,Q.TSLA,A.AAPL,A.TSLA,AM.AAPL,AM.TSLA"}"#.into())
+            Message::text(
+                r#"{"action":"subscribe","params":"T.AAPL,T.TSLA,Q.AAPL,Q.TSLA,A.AAPL,A.TSLA,AM.AAPL,AM.TSLA"}"#
+            )
         );
         let subscription_response = r#"[
             {"ev":"status","status":"success","message":"subscribed to: T.AAPL"},
@@ -208,7 +221,7 @@ mod test {
             {"ev":"status","status":"success","message":"subscribed to: AM.TSLA"}
         ]"#;
         connection
-            .send(Message::Text(subscription_response.into()))
+            .send(Message::text(subscription_response))
             .await
             .expect("Failed to send subscription response");
     }
@@ -230,8 +243,8 @@ mod test {
         let connection = Connection::new(
             "ws://localhost:12345".into(),
             "test".into(),
-            vec!["T".into(), "Q".into(), "A".into(), "AM".into()],
-            vec!["AAPL".into(), "TSLA".into()],
+            &["T", "Q", "A", "AM"],
+            &["AAPL", "TSLA"],
         );
 
         let mut ws = connection.connect().await.unwrap();

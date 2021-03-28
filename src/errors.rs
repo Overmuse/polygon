@@ -8,8 +8,12 @@ use tokio_tungstenite::tungstenite;
 #[derive(Debug, Error)]
 pub enum Error {
     #[cfg(feature = "rest")]
-    #[error("Missing environment variable: {0}")]
-    MissingEnv(#[from] std::env::VarError),
+    #[error("Missing environment variable: {variable}")]
+    MissingEnv {
+        #[source]
+        source: std::env::VarError,
+        variable: String,
+    },
 
     #[cfg(feature = "rest")]
     #[error("Reqwest error: {0}")]

@@ -1,10 +1,11 @@
 use super::{aggregates::*, quotes::*, trades::*};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 #[derive(Serialize, Debug)]
 pub struct PolygonAction {
-    pub action: String,
-    pub params: String,
+    pub action: Cow<'static, str>,
+    pub params: Cow<'static, str>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -15,14 +16,6 @@ pub enum PolygonStatus {
     AuthSuccess,
     AuthFailed,
     MaxConnections,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "lowercase")]
-pub struct PolygonResponse {
-    ev: String,
-    pub status: PolygonStatus,
-    pub message: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
