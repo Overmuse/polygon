@@ -33,7 +33,7 @@ pub enum Tape {
     C = 3,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq, Hash, Eq)]
 #[repr(u8)]
 pub enum TradeCondition {
     /// A trade made without stated conditions is deemed regular way for settlement on the third
