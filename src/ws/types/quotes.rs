@@ -35,7 +35,7 @@ pub struct AskQuote {
     pub size: u32,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq, Hash)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq, Hash, Eq)]
 #[repr(u8)]
 pub enum QuoteCondition {
     Regular = 0,
