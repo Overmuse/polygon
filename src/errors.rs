@@ -19,8 +19,11 @@ pub enum Error {
     #[error("Reqwest error: {0}")]
     Reqwest(#[from] reqwest::Error),
 
-    #[error("Serde error: {0}")]
-    Serde(#[from] serde_json::Error),
+    #[error("Serde error: {error}\nMsg: {msg}")]
+    Serde {
+        error: serde_json::Error,
+        msg: String,
+    },
 
     #[cfg(feature = "rest")]
     #[error("Invalid request. Received status {0}. Message: {1}")]
