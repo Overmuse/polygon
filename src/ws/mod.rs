@@ -30,7 +30,7 @@ impl<T: Stream<Item = TungsteniteResult> + Unpin> Stream for WebSocket<T> {
         match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
             Some(Ok(Message::Text(txt))) => {
                 let parsed: Result<VecDeque<PolygonMessage>> =
-                    serde_json::from_str(&txt).map_err(Error::Serde);
+                    serde_json::from_str(&txt).map_err(|e| Error::Serde { error: e, msg: txt });
                 match parsed {
                     Ok(mut messages) => {
                         let ret = messages.pop_front();
