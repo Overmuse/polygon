@@ -1,0 +1,2 @@
+# polygon
+`polygon` is a rust library for working with the [polygon.io](https://polygon.io/) market data provider. The `rest` feature enables strongly-typed interaction with polygon's rest endpoints, with asynchronous communication and automatic serialization and deserialization to correct types. The `ws` feature enables asynchronous streaming of market-data from polygon. Both features are enabled by default.
