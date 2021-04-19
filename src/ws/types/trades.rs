@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
@@ -12,7 +13,7 @@ pub struct Trade {
     #[serde(rename = "z")]
     pub tape: Tape,
     #[serde(rename = "p")]
-    pub price: f64,
+    pub price: Decimal,
     #[serde(rename = "s")]
     pub size: u32,
     #[serde(

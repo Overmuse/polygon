@@ -1,5 +1,6 @@
 use crate::rest::{Request, RequestBody};
 use chrono::NaiveDate;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
@@ -59,13 +60,13 @@ pub struct Quote {
     pub c: Vec<u32>,
     pub i: Option<Vec<u32>>,
     #[serde(rename = "p")]
-    pub bid_price: f64,
+    pub bid_price: Decimal,
     #[serde(rename = "x")]
     pub bid_exchange: u32,
     #[serde(rename = "s")]
     pub bid_size: u32,
     #[serde(rename = "P")]
-    pub ask_price: f64,
+    pub ask_price: Decimal,
     #[serde(rename = "X")]
     pub ask_exchange: u32,
     #[serde(rename = "S")]
@@ -133,12 +134,12 @@ pub enum SortOrder {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Aggregate {
-    pub o: f64,
-    pub h: f64,
-    pub l: f64,
-    pub c: f64,
-    pub v: f64,
-    pub vw: Option<f64>,
+    pub o: Decimal,
+    pub h: Decimal,
+    pub l: Decimal,
+    pub c: Decimal,
+    pub v: Decimal,
+    pub vw: Option<Decimal>,
     pub t: u64,
     pub n: Option<u32>,
 }

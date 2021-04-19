@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -9,19 +10,19 @@ pub struct Aggregate {
     #[serde(rename = "av")]
     pub accumulated_volume: u32,
     #[serde(rename = "op", skip_serializing_if = "Option::is_none")]
-    pub day_open: Option<f64>,
+    pub day_open: Option<Decimal>,
     #[serde(rename = "vw")]
-    pub vwap: f64,
+    pub vwap: Decimal,
     #[serde(rename = "o")]
-    pub open: f64,
+    pub open: Decimal,
     #[serde(rename = "c")]
-    pub close: f64,
+    pub close: Decimal,
     #[serde(rename = "h")]
-    pub high: f64,
+    pub high: Decimal,
     #[serde(rename = "l")]
-    pub low: f64,
+    pub low: Decimal,
     #[serde(rename = "a")]
-    pub average: f64,
+    pub average: Decimal,
     #[serde(rename = "z", skip_serializing_if = "Option::is_none")]
     pub average_trade_size: Option<u32>,
     #[serde(rename = "s")]
