@@ -1,3 +1,4 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
@@ -20,7 +21,7 @@ pub struct BidQuote {
     #[serde(rename = "bx")]
     pub exchange_id: u8,
     #[serde(rename = "bp")]
-    pub price: f64,
+    pub price: Decimal,
     #[serde(rename = "bs")]
     pub size: u32,
 }
@@ -30,7 +31,7 @@ pub struct AskQuote {
     #[serde(rename = "ax")]
     pub exchange_id: u8,
     #[serde(rename = "ap")]
-    pub price: f64,
+    pub price: Decimal,
     #[serde(rename = "as")]
     pub size: u32,
 }
