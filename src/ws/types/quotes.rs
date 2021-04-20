@@ -63,4 +63,5 @@ pub enum QuoteCondition {
     NewsDissemination = 21,
     OrderInflux = 22,
     OrderImbalance = 23,
+    Unknown = 82,
 }
