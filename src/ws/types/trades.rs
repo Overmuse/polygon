@@ -2,6 +2,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
 
+fn is_zero(x: &u32) -> bool {
+    *x == 0
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Trade {
     #[serde(rename = "sym")]
@@ -14,7 +18,11 @@ pub struct Trade {
     pub tape: Tape,
     #[serde(rename = "p")]
     pub price: Decimal,
-    #[serde(rename = "s")]
+    #[serde(
+        rename = "s",
+        default = "Default::default",
+        skip_serializing_if = "is_zero"
+    )]
     pub size: u32,
     #[serde(
         rename = "c",

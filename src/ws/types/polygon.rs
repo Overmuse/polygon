@@ -86,6 +86,28 @@ mod tests {
     }
 
     #[test]
+    fn can_parse_trade_without_size_field() {
+        let json = r#"{"ev":"T","sym":"CBOE","x":19,"i":"52983525035591","z":1,"p":104.28,"c":[38],"t":1618963200252}"#;
+
+        let deserialized: PolygonMessage = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            deserialized,
+            PolygonMessage::Trade(Trade {
+                symbol: "CBOE".into(),
+                trade_id: "52983525035591".into(),
+                exchange_id: 19,
+                price: dec!(104.28),
+                size: 0,
+                conditions: vec![TradeCondition::CorrectedConsolidatedClose],
+                timestamp: 1618963200252,
+                tape: Tape::A
+            })
+        );
+        let serialized = serde_json::to_string(&deserialized).unwrap();
+        assert_eq!(serialized, json);
+    }
+
+    #[test]
     fn serde_quote() {
         let json = r#"{"ev":"Q","sym":"MSFT","bx":4,"bp":114.125,"bs":100,"ax":7,"ap":114.128,"as":160,"c":0,"t":1536036818784}"#;
 
