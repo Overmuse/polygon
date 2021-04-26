@@ -1,0 +1,19 @@
+[package]
+name = "polygon-downloader"
+version = "0.1.0"
+authors = ["Sebastian Rollen <seb@overmu.se>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.40"
+chrono = "0.4.19"
+clap = "2.33.3"
+csv = "1.1.6"
+dotenv = "0.15.0"
+futures = "0.3.14"
+polygon = { path = "../polygon" }
+rust_decimal = "1.12.2"
+serde = "1.0.125"
+tokio =  { version = "1.5.0", features = ["macros", "rt-multi-thread"] }

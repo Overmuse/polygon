@@ -1,0 +1,59 @@
+use clap::{App, Arg, ArgMatches};
+
+pub fn get_matches() -> ArgMatches<'static> {
+    App::new("polygon-downloader")
+        .version(clap::crate_version!())
+        .arg(
+            Arg::with_name("tickers")
+                .long("tickers")
+                .use_delimiter(true)
+                .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("file")
+                .long("file")
+                .short("f")
+                .takes_value(true)
+                .default_value("output"),
+        )
+        .arg(
+            Arg::with_name("output-format")
+                .short("o")
+                .long("output-format")
+                .takes_value(true)
+                .possible_value("csv")
+                .default_value("csv"),
+        )
+        .arg(
+            Arg::with_name("multiplier")
+                .long("multiplier")
+                .takes_value(true)
+                .required(true)
+                .default_value("1"),
+        )
+        .arg(
+            Arg::with_name("timespan")
+                .long("timespan")
+                .takes_value(true)
+                .required(true)
+                .default_value("day")
+                .possible_values(&["minute", "hour", "day", "week", "month", "quarter", "year"]),
+        )
+        .arg(
+            Arg::with_name("start-date")
+                .long("start")
+                .takes_value(true)
+                .allow_hyphen_values(true)
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("end-date")
+                .long("end")
+                .takes_value(true)
+                .allow_hyphen_values(true)
+                .required(true),
+        )
+        .arg(Arg::with_name("adjust-prices").long("adjust"))
+        .get_matches()
+}

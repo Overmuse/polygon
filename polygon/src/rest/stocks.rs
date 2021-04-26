@@ -98,7 +98,7 @@ impl<'a> Request for GetQuotes<'a> {
 
 // Aggregates
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Timespan {
     Minute,
