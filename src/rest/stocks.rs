@@ -304,7 +304,8 @@ pub struct QuoteSnapshot {
 #[derive(Deserialize, Debug)]
 pub struct TradeSnapshot {
     // TODO: Implement with TradeCondition from ws.
-    pub c: Vec<u8>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub c: Option<Vec<u8>>,
     pub i: String,
     pub p: Decimal,
     pub s: u32,
@@ -357,7 +358,7 @@ mod test {
     async fn get_ticker_snapshot() {
         let _m = mock("GET", "/v2/snapshot/locale/us/markets/stocks/tickers/AAPL")
             .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
-            .with_body(r#"{"status":"OK","ticker":{"day":{"c":120.4229,"h":120.53,"l":118.81,"o":119.62,"v":28727868,"vw":119.725},"lastQuote":{"P":120.47,"S":4,"p":120.46,"s":8,"t":1605195918507251700},"lastTrade":{"c":[14,41],"i":"4046","p":120.47,"s":236,"t":1605195918306274000,"x":10},"min":{"av":28724441,"c":120.4201,"h":120.468,"l":120.37,"o":120.435,"v":270796,"vw":120.4129},"prevDay":{"c":119.49,"h":119.63,"l":116.44,"o":117.19,"v":110597265,"vw":118.4998},"ticker":"AAPL","todaysChange":0.98,"todaysChangePerc":0.82,"updated":1605195918306274000}}"#).create();
+            .with_body(r#"{"status":"OK","ticker":{"day":{"c":120.4229,"h":120.53,"l":118.81,"o":119.62,"v":28727868,"vw":119.725},"lastQuote":{"P":120.47,"S":4,"p":120.46,"s":8,"t":1605195918507251700},"lastTrade":{"c":null,"i":"4046","p":120.47,"s":236,"t":1605195918306274000,"x":10},"min":{"av":28724441,"c":120.4201,"h":120.468,"l":120.37,"o":120.435,"v":270796,"vw":120.4129},"prevDay":{"c":119.49,"h":119.63,"l":116.44,"o":117.19,"v":110597265,"vw":118.4998},"ticker":"AAPL","todaysChange":0.98,"todaysChangePerc":0.82,"updated":1605195918306274000}}"#).create();
 
         let url = mockito::server_url();
 
