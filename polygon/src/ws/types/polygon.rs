@@ -16,6 +16,7 @@ pub enum PolygonStatus {
     AuthSuccess,
     AuthFailed,
     MaxConnections,
+    ForceDisconnect,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
