@@ -234,6 +234,84 @@ impl<'a> Request for GetAggregate<'a> {
     }
 }
 
+// Snapshot
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetTickerSnapshot<'a>(pub &'a str);
+
+impl Request for GetTickerSnapshot<'_> {
+    type Body = ();
+    type Response = TickerSnapshotWrapper;
+
+    fn endpoint(&self) -> Cow<str> {
+        format!("v2/snapshot/locale/us/markets/stocks/tickers/{}", self.0).into()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Deserialize, Debug)]
+pub enum TickerSnapshotStatus {
+    OK,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TickerSnapshotWrapper {
+    pub status: TickerSnapshotStatus,
+    pub ticker: TickerSnapshot,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TickerSnapshot {
+    pub day: AggregateSnapshot,
+    pub last_quote: QuoteSnapshot,
+    pub last_trade: TradeSnapshot,
+    #[serde(rename = "min")]
+    pub minute: AggregateSnapshot,
+    #[serde(rename = "prevDay")]
+    pub previous_day: AggregateSnapshot,
+    pub ticker: String,
+    pub todays_change: Decimal,
+    #[serde(rename = "todaysChangePerc")]
+    pub todays_change_percent: Decimal,
+    pub updated: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AggregateSnapshot {
+    pub av: Option<Decimal>,
+    pub o: Decimal,
+    pub h: Decimal,
+    pub l: Decimal,
+    pub c: Decimal,
+    pub v: u64,
+    pub vw: Decimal,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct QuoteSnapshot {
+    #[serde(rename = "p")]
+    pub bid_price: Decimal,
+    #[serde(rename = "s")]
+    pub bid_size: u32,
+    #[serde(rename = "P")]
+    pub ask_price: Decimal,
+    #[serde(rename = "S")]
+    pub ask_size: u32,
+    pub t: u64,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct TradeSnapshot {
+    // TODO: Implement with TradeCondition from ws.
+    pub c: Vec<u8>,
+    pub i: String,
+    pub p: Decimal,
+    pub s: u32,
+    pub t: u64,
+    pub x: u8,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -272,6 +350,19 @@ mod test {
 
         let client = Client::new(&url, "TOKEN");
         let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
+        client.send(req).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_ticker_snapshot() {
+        let _m = mock("GET", "/v2/snapshot/locale/us/markets/stocks/tickers/AAPL")
+            .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
+            .with_body(r#"{"status":"OK","ticker":{"day":{"c":120.4229,"h":120.53,"l":118.81,"o":119.62,"v":28727868,"vw":119.725},"lastQuote":{"P":120.47,"S":4,"p":120.46,"s":8,"t":1605195918507251700},"lastTrade":{"c":[14,41],"i":"4046","p":120.47,"s":236,"t":1605195918306274000,"x":10},"min":{"av":28724441,"c":120.4201,"h":120.468,"l":120.37,"o":120.435,"v":270796,"vw":120.4129},"prevDay":{"c":119.49,"h":119.63,"l":116.44,"o":117.19,"v":110597265,"vw":118.4998},"ticker":"AAPL","todaysChange":0.98,"todaysChangePerc":0.82,"updated":1605195918306274000}}"#).create();
+
+        let url = mockito::server_url();
+
+        let client = Client::new(&url, "TOKEN");
+        let req = GetTickerSnapshot("AAPL");
         client.send(req).await.unwrap();
     }
 }
