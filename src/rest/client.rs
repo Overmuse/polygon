@@ -1,6 +1,6 @@
 use crate::errors::{Error, Result};
 use crate::rest::{Request, RequestBuilderExt};
-use futures::TryFutureExt;
+use futures::{stream, FutureExt, StreamExt, TryFutureExt};
 use reqwest::Client as ReqwestClient;
 use std::borrow::Cow;
 use std::env;
@@ -78,5 +78,18 @@ impl<'a> Client<'a> {
         } else {
             Err(Error::ServerError(status, res.text().await?))
         }
+    }
+
+    /// Send multiple requests to Alpaca, returning a Stream of responses.
+    pub async fn send_all<T, R>(&self, requests: T) -> Vec<Result<R::Response>>
+    where
+        T: Iterator<Item = R>,
+        R: Request,
+    {
+        stream::iter(requests)
+            .map(|r| self.send(r).map_into())
+            .filter_map(|x| x)
+            .collect()
+            .await
     }
 }
