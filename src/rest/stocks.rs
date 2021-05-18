@@ -7,7 +7,7 @@ use std::fmt;
 
 // Quotes
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetQuotes<'a> {
     ticker: &'a str,
     date: NaiveDate,
@@ -74,7 +74,7 @@ pub struct Quote {
     pub z: u8,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct QuoteWrapper {
     pub ticker: String,
     pub results_count: u32,
@@ -98,7 +98,7 @@ impl<'a> Request for GetQuotes<'a> {
 
 // Aggregates
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum Timespan {
     Minute,
@@ -125,7 +125,7 @@ impl fmt::Display for Timespan {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     Asc,
@@ -144,7 +144,7 @@ pub struct Aggregate {
     pub n: Option<u32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AggregateWrapper {
     pub ticker: String,
     pub status: String,
@@ -157,7 +157,7 @@ pub struct AggregateWrapper {
     pub results: Option<Vec<Aggregate>>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetAggregate<'a> {
     #[serde(rename = "stocksTicker")]
     ticker: &'a str,
@@ -210,7 +210,7 @@ impl<'a> GetAggregate<'a> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetAggregateQuery {
     unadjusted: bool,
     sort: SortOrder,
@@ -236,7 +236,7 @@ impl<'a> Request for GetAggregate<'a> {
 
 // Snapshot
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetTickerSnapshot<'a>(pub &'a str);
 
 impl Request for GetTickerSnapshot<'_> {
@@ -249,18 +249,18 @@ impl Request for GetTickerSnapshot<'_> {
 }
 
 #[non_exhaustive]
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub enum TickerSnapshotStatus {
     OK,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct TickerSnapshotWrapper {
     pub status: TickerSnapshotStatus,
     pub ticker: TickerSnapshot,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TickerSnapshot {
     pub day: AggregateSnapshot,
@@ -277,7 +277,7 @@ pub struct TickerSnapshot {
     pub updated: u64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct AggregateSnapshot {
     pub av: Option<Decimal>,
     pub o: Decimal,
@@ -288,7 +288,7 @@ pub struct AggregateSnapshot {
     pub vw: Decimal,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct QuoteSnapshot {
     #[serde(rename = "p")]
     pub bid_price: Decimal,
@@ -301,7 +301,7 @@ pub struct QuoteSnapshot {
     pub t: u64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct TradeSnapshot {
     // TODO: Implement with TradeCondition from ws.
     pub c: Vec<u8>,
