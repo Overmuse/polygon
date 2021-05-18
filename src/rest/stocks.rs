@@ -353,7 +353,9 @@ pub struct PreviousClose {
     pub h: Decimal,
     pub l: Decimal,
     pub c: Decimal,
-    pub v: u64,
+    // TODO: This should be an integer, but Polygon sometimes returns the value in scientific
+    // notation, which messes with deserialization
+    pub v: Decimal,
     pub vw: Decimal,
     pub t: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -421,7 +423,7 @@ mod test {
                     Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()),
                     Matcher::UrlEncoded("unadjusted".into(), "false".into())
             ]))
-            .with_body(r#"{"ticker":"AAPL","status":"OK","queryCount":1,"resultsCount":1,"adjusted":true,"results":[{"T":"AAPL","v":131704427,"vw":116.3058,"o":115.55,"c":115.97,"h":117.59,"l":114.13,"t":1605042000000}],"request_id":"6a7e466379af0a71039d60cc78e72282"}"#).create();
+            .with_body(r#"{"ticker":"AAPL","status":"OK","queryCount":1,"resultsCount":1,"adjusted":true,"results":[{"T":"AAPL","v":1.31704427e+079,"vw":116.3058,"o":115.55,"c":115.97,"h":117.59,"l":114.13,"t":1605042000000}],"request_id":"6a7e466379af0a71039d60cc78e72282"}"#).create();
 
         let url = mockito::server_url();
 
