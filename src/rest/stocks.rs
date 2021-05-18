@@ -313,6 +313,53 @@ pub struct TradeSnapshot {
     pub x: u8,
 }
 
+// Previous close
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct GetPreviousClose<'a> {
+    pub ticker: &'a str,
+    pub unadjusted: bool,
+}
+
+impl Request for GetPreviousClose<'_> {
+    type Body = Self;
+    type Response = PreviousCloseWrapper;
+
+    fn endpoint(&self) -> Cow<str> {
+        format!("/v2/aggs/ticker/{}/prev", self.ticker).into()
+    }
+
+    fn body(&self) -> RequestBody<&Self> {
+        RequestBody::Query(&self)
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PreviousCloseWrapper {
+    pub ticker: String,
+    pub status: String,
+    pub adjusted: bool,
+    #[serde(rename = "queryCount")]
+    pub query_count: usize,
+    #[serde(rename = "resultsCount")]
+    pub results_count: usize,
+    pub request_id: String,
+    pub results: Vec<PreviousClose>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PreviousClose {
+    pub o: Decimal,
+    pub h: Decimal,
+    pub l: Decimal,
+    pub c: Decimal,
+    pub v: u64,
+    pub vw: Decimal,
+    pub t: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub n: Option<u32>,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -364,6 +411,25 @@ mod test {
 
         let client = Client::new(&url, "TOKEN");
         let req = GetTickerSnapshot("AAPL");
+        client.send(req).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_previous_close() {
+        let _m = mock("GET", "/v2/aggs/ticker/AAPL/prev")
+            .match_query(Matcher::AllOf(vec![
+                    Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()),
+                    Matcher::UrlEncoded("unadjusted".into(), "false".into())
+            ]))
+            .with_body(r#"{"ticker":"AAPL","status":"OK","queryCount":1,"resultsCount":1,"adjusted":true,"results":[{"T":"AAPL","v":131704427,"vw":116.3058,"o":115.55,"c":115.97,"h":117.59,"l":114.13,"t":1605042000000}],"request_id":"6a7e466379af0a71039d60cc78e72282"}"#).create();
+
+        let url = mockito::server_url();
+
+        let client = Client::new(&url, "TOKEN");
+        let req = GetPreviousClose {
+            ticker: "AAPL",
+            unadjusted: false,
+        };
         client.send(req).await.unwrap();
     }
 }
