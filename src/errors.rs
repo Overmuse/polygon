@@ -5,7 +5,7 @@ use thiserror::Error;
 #[cfg(feature = "ws")]
 use tokio_tungstenite::tungstenite;
 
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum Error {
     #[cfg(feature = "rest")]
     #[error("Missing environment variable: {variable}")]
