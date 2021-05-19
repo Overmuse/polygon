@@ -1,3 +1,5 @@
+use crate::domain::aggregates::rest::Aggregate;
+use crate::domain::quotes::rest::Quote;
 use crate::rest::{Request, RequestBody};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -49,29 +51,6 @@ impl<'a> GetQuotes<'a> {
         self.limit = limit;
         self
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Quote {
-    pub t: u64,
-    pub y: u64,
-    pub f: Option<u64>,
-    pub q: u32,
-    pub c: Vec<u32>,
-    pub i: Option<Vec<u32>>,
-    #[serde(rename = "p")]
-    pub bid_price: Decimal,
-    #[serde(rename = "x")]
-    pub bid_exchange: u32,
-    #[serde(rename = "s")]
-    pub bid_size: u32,
-    #[serde(rename = "P")]
-    pub ask_price: Decimal,
-    #[serde(rename = "X")]
-    pub ask_exchange: u32,
-    #[serde(rename = "S")]
-    pub ask_size: u32,
-    pub z: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -130,18 +109,6 @@ impl fmt::Display for Timespan {
 pub enum SortOrder {
     Asc,
     Desc,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Aggregate {
-    pub o: Decimal,
-    pub h: Decimal,
-    pub l: Decimal,
-    pub c: Decimal,
-    pub v: Decimal,
-    pub vw: Option<Decimal>,
-    pub t: u64,
-    pub n: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
