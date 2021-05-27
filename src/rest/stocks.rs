@@ -1,6 +1,6 @@
 use crate::rest::{Request, RequestBody};
 use chrono::{
-    serde::{ts_nanoseconds, ts_nanoseconds_option},
+    serde::{ts_milliseconds, ts_nanoseconds, ts_nanoseconds_option},
     DateTime, NaiveDate, TimeZone, Utc,
 };
 use rust_decimal::Decimal;
@@ -147,7 +147,7 @@ pub struct Aggregate {
     pub c: Decimal,
     pub v: Decimal,
     pub vw: Option<Decimal>,
-    #[serde(with = "ts_nanoseconds")]
+    #[serde(with = "ts_milliseconds")]
     pub t: DateTime<Utc>,
     pub n: Option<u32>,
 }
@@ -368,7 +368,7 @@ pub struct PreviousClose {
     // notation, which messes with deserialization
     pub v: Decimal,
     pub vw: Decimal,
-    #[serde(with = "ts_nanoseconds")]
+    #[serde(with = "ts_milliseconds")]
     pub t: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub n: Option<u32>,
