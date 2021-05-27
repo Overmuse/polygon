@@ -1,3 +1,4 @@
+use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
@@ -30,8 +31,8 @@ pub struct Trade {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub conditions: Vec<TradeCondition>,
-    #[serde(rename = "t")]
-    pub timestamp: u64,
+    #[serde(rename = "t", with = "ts_milliseconds")]
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]

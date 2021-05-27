@@ -39,6 +39,7 @@ pub enum PolygonMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::prelude::*;
     use rust_decimal_macros::dec;
 
     #[test]
@@ -55,7 +56,7 @@ mod tests {
                 price: dec!(114.125),
                 size: 100,
                 conditions: vec![TradeCondition::RegularSale, TradeCondition::FormT],
-                timestamp: 1536036818784,
+                timestamp: Utc.ymd(2018, 9, 4).and_hms_milli(4, 53, 38, 784),
                 tape: Tape::C
             })
         );
@@ -77,7 +78,7 @@ mod tests {
                 price: dec!(114.125),
                 size: 100,
                 conditions: vec![],
-                timestamp: 1536036818784,
+                timestamp: Utc.ymd(2018, 9, 4).and_hms_milli(4, 53, 38, 784),
                 tape: Tape::C
             })
         );
@@ -99,7 +100,7 @@ mod tests {
                 price: dec!(104.28),
                 size: 0,
                 conditions: vec![TradeCondition::CorrectedConsolidatedClose],
-                timestamp: 1618963200252,
+                timestamp: Utc.ymd(2021, 4, 21).and_hms_milli(0, 0, 0, 252),
                 tape: Tape::A
             })
         );
@@ -127,7 +128,7 @@ mod tests {
                     size: 100
                 }),
                 condition: Some(QuoteCondition::Regular),
-                timestamp: 1536036818784,
+                timestamp: Utc.ymd(2018, 9, 4).and_hms_milli(4, 53, 38, 784),
             })
         );
         let serialized = serde_json::to_string(&deserialized).unwrap();
@@ -150,7 +151,7 @@ mod tests {
                     size: 100
                 }),
                 condition: None,
-                timestamp: 1536036818784,
+                timestamp: Utc.ymd(2018, 9, 4).and_hms_milli(4, 53, 38, 784),
             })
         );
         let serialized = serde_json::to_string(&deserialized).unwrap();
@@ -176,8 +177,8 @@ mod tests {
                 low: dec!(25.39),
                 average: dec!(25.3714),
                 average_trade_size: Some(50),
-                start_timestamp: 1610144868000,
-                end_timestamp: 1610144869000,
+                start_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 27, 48, 0),
+                end_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 27, 49, 0),
             })
         );
         let serialized = serde_json::to_string(&deserialized).unwrap();
@@ -203,8 +204,8 @@ mod tests {
                 low: dec!(25.39),
                 average: dec!(25.3714),
                 average_trade_size: None,
-                start_timestamp: 1610144868000,
-                end_timestamp: 1610144869000,
+                start_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 27, 48, 0),
+                end_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 27, 49, 0),
             })
         );
         let serialized = serde_json::to_string(&deserialized).unwrap();
@@ -230,8 +231,8 @@ mod tests {
                 low: dec!(0.4486),
                 average: dec!(0.4352),
                 average_trade_size: Some(685),
-                start_timestamp: 1610144640000,
-                end_timestamp: 1610144700000,
+                start_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 24, 0, 0),
+                end_timestamp: Utc.ymd(2021, 1, 8).and_hms_milli(22, 25, 0, 0),
             })
         );
         let serialized = serde_json::to_string(&deserialized).unwrap();
