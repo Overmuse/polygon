@@ -1,3 +1,4 @@
+use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -25,8 +26,8 @@ pub struct Aggregate {
     pub average: Decimal,
     #[serde(rename = "z", skip_serializing_if = "Option::is_none")]
     pub average_trade_size: Option<u32>,
-    #[serde(rename = "s")]
-    pub start_timestamp: u64,
-    #[serde(rename = "e")]
-    pub end_timestamp: u64,
+    #[serde(rename = "s", with = "ts_milliseconds")]
+    pub start_timestamp: DateTime<Utc>,
+    #[serde(rename = "e", with = "ts_milliseconds")]
+    pub end_timestamp: DateTime<Utc>,
 }

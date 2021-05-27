@@ -1,5 +1,8 @@
 use crate::rest::{Request, RequestBody};
-use chrono::NaiveDate;
+use chrono::{
+    serde::{ts_nanoseconds, ts_nanoseconds_option},
+    DateTime, NaiveDate, TimeZone, Utc,
+};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -11,9 +14,10 @@ use std::fmt;
 pub struct GetQuotes<'a> {
     ticker: &'a str,
     date: NaiveDate,
-    timestamp: u64,
-    #[serde(rename = "timestampLimit")]
-    timestamp_limit: Option<u64>,
+    #[serde(with = "ts_nanoseconds")]
+    timestamp: DateTime<Utc>,
+    #[serde(rename = "timestampLimit", default, with = "ts_nanoseconds_option")]
+    timestamp_limit: Option<DateTime<Utc>>,
     reverse: bool,
     limit: u32,
 }
@@ -23,19 +27,19 @@ impl<'a> GetQuotes<'a> {
         Self {
             ticker,
             date,
-            timestamp: 0,
+            timestamp: Utc.ymd(1970, 1, 1).and_hms(0, 0, 0),
             timestamp_limit: None,
             reverse: false,
             limit: 5000,
         }
     }
 
-    pub fn timestamp(mut self, timestamp: u64) -> Self {
+    pub fn timestamp(mut self, timestamp: DateTime<Utc>) -> Self {
         self.timestamp = timestamp;
         self
     }
 
-    pub fn timestamp_limit(mut self, timestamp_limit: u64) -> Self {
+    pub fn timestamp_limit(mut self, timestamp_limit: DateTime<Utc>) -> Self {
         self.timestamp_limit = Some(timestamp_limit);
         self
     }
@@ -53,9 +57,12 @@ impl<'a> GetQuotes<'a> {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Quote {
-    pub t: u64,
-    pub y: u64,
-    pub f: Option<u64>,
+    #[serde(with = "ts_nanoseconds")]
+    pub t: DateTime<Utc>,
+    #[serde(with = "ts_nanoseconds")]
+    pub y: DateTime<Utc>,
+    #[serde(default, with = "ts_nanoseconds_option")]
+    pub f: Option<DateTime<Utc>>,
     pub q: u32,
     pub c: Vec<u32>,
     pub i: Option<Vec<u32>>,
@@ -140,7 +147,8 @@ pub struct Aggregate {
     pub c: Decimal,
     pub v: Decimal,
     pub vw: Option<Decimal>,
-    pub t: u64,
+    #[serde(with = "ts_nanoseconds")]
+    pub t: DateTime<Utc>,
     pub n: Option<u32>,
 }
 
@@ -274,7 +282,8 @@ pub struct TickerSnapshot {
     pub todays_change: Decimal,
     #[serde(rename = "todaysChangePerc")]
     pub todays_change_percent: Decimal,
-    pub updated: u64,
+    #[serde(with = "ts_nanoseconds")]
+    pub updated: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -298,7 +307,8 @@ pub struct QuoteSnapshot {
     pub ask_price: Decimal,
     #[serde(rename = "S")]
     pub ask_size: u32,
-    pub t: u64,
+    #[serde(with = "ts_nanoseconds")]
+    pub t: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -309,7 +319,8 @@ pub struct TradeSnapshot {
     pub i: String,
     pub p: Decimal,
     pub s: u32,
-    pub t: u64,
+    #[serde(with = "ts_nanoseconds")]
+    pub t: DateTime<Utc>,
     pub x: u8,
 }
 
@@ -357,7 +368,8 @@ pub struct PreviousClose {
     // notation, which messes with deserialization
     pub v: Decimal,
     pub vw: Decimal,
-    pub t: u64,
+    #[serde(with = "ts_nanoseconds")]
+    pub t: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub n: Option<u32>,
 }

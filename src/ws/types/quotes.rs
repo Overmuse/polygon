@@ -1,3 +1,4 @@
+use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
@@ -12,8 +13,8 @@ pub struct Quote {
     pub ask_quote: Option<AskQuote>,
     #[serde(rename = "c", skip_serializing_if = "Option::is_none")]
     pub condition: Option<QuoteCondition>,
-    #[serde(rename = "t")]
-    pub timestamp: u64,
+    #[serde(rename = "t", with = "ts_milliseconds")]
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
