@@ -35,6 +35,41 @@ pub struct Trade {
     pub timestamp: DateTime<Utc>,
 }
 
+impl Trade {
+    pub fn is_eligible(&self) -> bool {
+        self.conditions.iter().all(|&c| {
+            (c == TradeCondition::RegularSale)
+                | (c == TradeCondition::Acquisition)
+                | (c == TradeCondition::AutomaticExecution)
+                | (c == TradeCondition::BunchedTrade)
+                | (c == TradeCondition::ClosingPrints)
+                | (c == TradeCondition::CrossTrade)
+                | (c == TradeCondition::Distribution)
+                | (c == TradeCondition::IntermarketSweep)
+                | (c == TradeCondition::Rule155Trade)
+                | (c == TradeCondition::OpeningPrints)
+                | (c == TradeCondition::StoppedStockRegularTrade)
+                | (c == TradeCondition::ReopeningPrints)
+                | (c == TradeCondition::SoldLast)
+                | (c == TradeCondition::SplitTrade)
+                | (c == TradeCondition::YellowFlagRegularTrade)
+                | (c == TradeCondition::CorrectedConsolidatedClose)
+        })
+    }
+
+    pub fn is_opening(&self) -> bool {
+        self.conditions
+            .iter()
+            .any(|&c| c == TradeCondition::MarketCenterOfficialOpen)
+    }
+
+    pub fn is_closing(&self) -> bool {
+        self.conditions
+            .iter()
+            .any(|&c| c == TradeCondition::MarketCenterOfficialClose)
+    }
+}
+
 #[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum Tape {
@@ -43,7 +78,7 @@ pub enum Tape {
     C = 3,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq, Hash, Eq)]
+#[derive(Serialize_repr, Deserialize_repr, Debug, Clone, PartialEq, Hash, Eq, Copy)]
 #[repr(u8)]
 pub enum TradeCondition {
     /// A trade made without stated conditions is deemed regular way for settlement on the third
