@@ -102,7 +102,7 @@ impl<'a> Request for GetQuotes<'a> {
     }
 
     fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(&self)
+        RequestBody::Query(self)
     }
 }
 
@@ -362,7 +362,7 @@ impl Request for GetPreviousClose<'_> {
     }
 
     fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(&self)
+        RequestBody::Query(self)
     }
 }
 
