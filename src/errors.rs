@@ -15,10 +15,6 @@ pub enum Error {
         variable: String,
     },
 
-    #[cfg(feature = "rest")]
-    #[error("Reqwest error: {0}")]
-    Reqwest(#[from] reqwest::Error),
-
     #[error("Serde error: {error}\nMsg: {msg}")]
     Serde {
         error: serde_json::Error,
@@ -26,12 +22,8 @@ pub enum Error {
     },
 
     #[cfg(feature = "rest")]
-    #[error("Invalid request. Received status {0}. Message: {1}")]
-    ClientError(reqwest::StatusCode, String),
-
-    #[cfg(feature = "rest")]
-    #[error("Server error. Received status {0}. Message: {1}")]
-    ServerError(reqwest::StatusCode, String),
+    #[error(transparent)]
+    Rest(rest_client::Error),
 
     #[cfg(feature = "ws")]
     #[error("Tungstenite error: {0}")]
