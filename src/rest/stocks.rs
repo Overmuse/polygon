@@ -1,7 +1,10 @@
-use crate::rest::{Request, RequestBody};
 use chrono::{
     serde::{ts_milliseconds, ts_nanoseconds, ts_nanoseconds_option},
     DateTime, NaiveDate, TimeZone, Utc,
+};
+use rest_client::{
+    PaginatedRequest, PaginationState, PaginationType, Paginator, QueryPaginator, Request,
+    RequestBody,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -99,7 +102,25 @@ impl<'a> Request for GetQuotes<'a> {
     }
 
     fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(&self)
+        RequestBody::Query(self)
+    }
+}
+
+fn query_pagination(
+    _: &PaginationState<PaginationType>,
+    res: &QuoteWrapper,
+) -> Option<Vec<(String, String)>> {
+    res.results.iter().last().map(|q| {
+        vec![(
+            "timestamp".to_string(),
+            format!("{}", q.t.timestamp_nanos()),
+        )]
+    })
+}
+
+impl<'a> PaginatedRequest for GetQuotes<'a> {
+    fn paginator(&self) -> Box<dyn Paginator<QuoteWrapper>> {
+        Box::new(QueryPaginator::new(query_pagination))
     }
 }
 
@@ -341,7 +362,7 @@ impl Request for GetPreviousClose<'_> {
     }
 
     fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(&self)
+        RequestBody::Query(self)
     }
 }
 
@@ -377,7 +398,7 @@ pub struct PreviousClose {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::rest::Client;
+    use crate::rest::client_with_url;
     use mockito::{mock, Matcher};
 
     #[tokio::test]
@@ -393,13 +414,13 @@ mod test {
             .create();
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetAggregate::new(
             "AAPL",
             NaiveDate::from_ymd(2021, 3, 1),
             NaiveDate::from_ymd(2021, 3, 1),
         );
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
     }
 
     #[tokio::test]
@@ -410,9 +431,25 @@ mod test {
 
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_quotes_paginated() {
+        use futures::StreamExt;
+        let _m = mock("GET", "/v2/ticks/stocks/nbbo/AAPL/2021-03-01")
+            .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
+            .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
+
+        let url = mockito::server_url();
+
+        let client = client_with_url(&url, "TOKEN");
+        let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
+        let mut stream = client.send_paginated(&req);
+        stream.next().await.unwrap().unwrap();
+        stream.next().await.unwrap().unwrap();
     }
 
     #[tokio::test]
@@ -423,9 +460,9 @@ mod test {
 
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetTickerSnapshot("AAPL");
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
     }
 
     #[tokio::test]
@@ -439,11 +476,11 @@ mod test {
 
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetPreviousClose {
             ticker: "AAPL",
             unadjusted: false,
         };
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
     }
 }

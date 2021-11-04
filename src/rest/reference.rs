@@ -1,5 +1,5 @@
-use crate::rest::Request;
 use chrono::{DateTime, NaiveDate, Utc};
+use rest_client::Request;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -85,7 +85,7 @@ impl Request for GetMarketStatus {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::rest::Client;
+    use crate::rest::client_with_url;
     use mockito::{mock, Matcher};
 
     #[tokio::test]
@@ -95,9 +95,9 @@ mod test {
             .with_body(r#"[{"exchange":"NYSE","name":"Thanksgiving","date":"2020-11-26","status":"closed"},{"exchange":"NASDAQ","name":"Thanksgiving","date":"2020-11-26","status":"closed"}]"#).create();
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetMarketHolidays;
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
     }
 
     #[tokio::test]
@@ -107,8 +107,8 @@ mod test {
             .with_body(r#"{"market":"extended-hours","serverTime":"2020-11-10T22:37:37.000Z","exchanges":{"nyse":"extended-hours","nasdaq":"extended-hours","otc":"closed"},"currencies":{"fx":"open","crypto":"open"}}"#).create();
         let url = mockito::server_url();
 
-        let client = Client::new(&url, "TOKEN");
+        let client = client_with_url(&url, "TOKEN");
         let req = GetMarketStatus;
-        client.send(req).await.unwrap();
+        client.send(&req).await.unwrap();
     }
 }
