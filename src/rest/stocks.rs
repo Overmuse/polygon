@@ -106,21 +106,18 @@ impl<'a> Request for GetQuotes<'a> {
     }
 }
 
-fn query_pagination(
-    _: &PaginationState<PaginationType>,
-    res: &QuoteWrapper,
-) -> Option<Vec<(String, String)>> {
-    res.results.iter().last().map(|q| {
-        vec![(
-            "timestamp".to_string(),
-            format!("{}", q.t.timestamp_nanos()),
-        )]
-    })
-}
-
 impl<'a> PaginatedRequest for GetQuotes<'a> {
     fn paginator(&self) -> Box<dyn Paginator<QuoteWrapper>> {
-        Box::new(QueryPaginator::new(query_pagination))
+        Box::new(QueryPaginator::new(
+            |_: &PaginationState<PaginationType>, res: &QuoteWrapper| {
+                res.results.iter().last().map(|q| {
+                    vec![(
+                        "timestamp".to_string(),
+                        format!("{}", q.t.timestamp_nanos()),
+                    )]
+                })
+            },
+        ))
     }
 }
 
