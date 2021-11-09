@@ -1,4 +1,4 @@
-use rest_client::Client;
+use vila::Client;
 pub mod reference;
 pub mod stocks;
 

@@ -2,14 +2,12 @@ use chrono::{
     serde::{ts_milliseconds, ts_nanoseconds, ts_nanoseconds_option},
     DateTime, NaiveDate, TimeZone, Utc,
 };
-use rest_client::{
-    PaginatedRequest, PaginationState, PaginationType, Paginator, QueryPaginator, Request,
-    RequestBody,
-};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::fmt;
+use vila::pagination::{PaginatedRequest, PaginationState, PaginationType, QueryPaginator};
+use vila::{Request, RequestData};
 
 // Quotes
 
@@ -94,30 +92,29 @@ pub struct QuoteWrapper {
 }
 
 impl<'a> Request for GetQuotes<'a> {
-    type Body = Self;
+    type Data = Self;
     type Response = QuoteWrapper;
 
     fn endpoint(&self) -> Cow<str> {
         format!("/v2/ticks/stocks/nbbo/{}/{}", self.ticker, self.date).into()
     }
 
-    fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(self)
+    fn data(&self) -> RequestData<&Self> {
+        RequestData::Query(self)
     }
 }
 
 impl<'a> PaginatedRequest for GetQuotes<'a> {
-    fn paginator(&self) -> Box<dyn Paginator<QuoteWrapper>> {
-        Box::new(QueryPaginator::new(
-            |_: &PaginationState<PaginationType>, res: &QuoteWrapper| {
-                res.results.iter().last().map(|q| {
-                    vec![(
-                        "timestamp".to_string(),
-                        format!("{}", q.t.timestamp_nanos()),
-                    )]
-                })
-            },
-        ))
+    type Paginator = QueryPaginator<QuoteWrapper>;
+    fn paginator(&self) -> Self::Paginator {
+        QueryPaginator::new(|_: &PaginationState<PaginationType>, res: &QuoteWrapper| {
+            res.results.iter().last().map(|q| {
+                vec![(
+                    "timestamp".to_string(),
+                    format!("{}", q.t.timestamp_nanos()),
+                )]
+            })
+        })
     }
 }
 
@@ -245,7 +242,7 @@ pub struct GetAggregateQuery {
 
 impl<'a> Request for GetAggregate<'a> {
     type Response = AggregateWrapper;
-    type Body = GetAggregateQuery;
+    type Data = GetAggregateQuery;
 
     fn endpoint(&self) -> Cow<str> {
         format!(
@@ -255,8 +252,8 @@ impl<'a> Request for GetAggregate<'a> {
         .into()
     }
 
-    fn body(&self) -> RequestBody<&GetAggregateQuery> {
-        RequestBody::Query(&self.query)
+    fn data(&self) -> RequestData<&GetAggregateQuery> {
+        RequestData::Query(&self.query)
     }
 }
 
@@ -266,7 +263,7 @@ impl<'a> Request for GetAggregate<'a> {
 pub struct GetTickerSnapshot<'a>(pub &'a str);
 
 impl Request for GetTickerSnapshot<'_> {
-    type Body = ();
+    type Data = ();
     type Response = TickerSnapshotWrapper;
 
     fn endpoint(&self) -> Cow<str> {
@@ -351,15 +348,15 @@ pub struct GetPreviousClose<'a> {
 }
 
 impl Request for GetPreviousClose<'_> {
-    type Body = Self;
+    type Data = Self;
     type Response = PreviousCloseWrapper;
 
     fn endpoint(&self) -> Cow<str> {
         format!("/v2/aggs/ticker/{}/prev", self.ticker).into()
     }
 
-    fn body(&self) -> RequestBody<&Self> {
-        RequestBody::Query(self)
+    fn data(&self) -> RequestData<&Self> {
+        RequestData::Query(self)
     }
 }
 

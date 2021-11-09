@@ -23,7 +23,7 @@ pub enum Error {
 
     #[cfg(feature = "rest")]
     #[error(transparent)]
-    Rest(rest_client::Error),
+    Vila(vila::Error),
 
     #[cfg(feature = "ws")]
     #[error("Tungstenite error: {0}")]
