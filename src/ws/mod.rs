@@ -241,8 +241,8 @@ mod test {
 
         con_rx.await.expect("Server not ready");
         let connection = Connection::new(
-            "ws://localhost:12345".into(),
-            "test".into(),
+            "ws://localhost:12345",
+            "test",
             &["T", "Q", "A", "AM"],
             &["AAPL", "TSLA"],
         );

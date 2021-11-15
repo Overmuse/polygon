@@ -1,4 +1,5 @@
 use vila::Client;
+mod date_utils;
 pub mod reference;
 pub mod stocks;
 
