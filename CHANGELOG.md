@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0](https://www.github.com/Overmuse/polygon/compare/v0.12.0...v1.0.0) (2021-11-15)
+## [0.13.0](https://www.github.com/Overmuse/polygon/compare/v0.12.0...v0.13.0) (2021-11-15)
 
 
 ### ⚠ BREAKING CHANGES
