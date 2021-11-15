@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDate, Utc};
-use rest_client::Request;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use vila::Request;
 
 // Market holidays
 
@@ -29,7 +29,7 @@ pub struct MarketHoliday {
 pub struct GetMarketHolidays;
 
 impl Request for GetMarketHolidays {
-    type Body = ();
+    type Data = ();
     type Response = Vec<MarketHoliday>;
 
     fn endpoint(&self) -> Cow<str> {
@@ -74,7 +74,7 @@ pub struct MarketStatus {
 pub struct GetMarketStatus;
 
 impl Request for GetMarketStatus {
-    type Body = ();
+    type Data = ();
     type Response = MarketStatus;
 
     fn endpoint(&self) -> Cow<str> {

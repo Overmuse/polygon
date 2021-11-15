@@ -10,7 +10,6 @@ edition = "2018"
 chrono = { version = "0.4", features = ["serde"] }
 futures = { version = "0.3"}
 itertools = "0.10"
-rest-client = {git = "ssh://git@github.com/Overmuse/rest-client.git", tag = "v0.1.2", optional = true}
 rust_decimal = { version = "1.11", features = ["serde-float"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -19,14 +18,27 @@ thiserror = "1.0"
 tokio-tungstenite = { version = "0.15", features = ["stream", "rustls-tls"], optional = true }
 tokio = { version = "1.0", default-features = false, features = ["net"], optional = true}
 tracing = "0.1"
+vila = { version = "2.0", optional = true }
 
 [dev-dependencies]
+anyhow = "1.0.45"
+env_logger = "0.9.0"
 futures-channel = "0.3"
+log = "0.4.14"
 mockito = "0.30"
 rust_decimal_macros = "1.11"
+stream-flatten-iters = "0.2.0"
 tokio = { version = "1.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["rest", "ws"]
-rest = ["rest-client"]
+rest = ["vila"]
 ws = ["tokio-tungstenite", "tokio/net"]
+
+[[example]]
+name = "aggregates"
+required-features = ["rest"]
+
+[[example]]
+name = "quotes"
+required-features = ["rest"]
