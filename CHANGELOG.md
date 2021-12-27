@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.14.0](https://www.github.com/Overmuse/polygon/compare/v0.13.0...v0.14.0) (2021-12-27)
+
+### Features
+
+* More endpoints and examples ([b2a184](https://github.com/Overmuse/polygon/commit/b2a184db213667973cb24db5f5cfee4c3f8a7d1b))
+
+
+### Bug Fixes
+
+* Use Eastern dates in pagination ([aae3a4](https://github.com/Overmuse/polygon/commit/aae3a41f6e8fabdf14f199b47a997b4d431de74d))
+
 ## [0.13.0](https://www.github.com/Overmuse/polygon/compare/v0.12.0...v0.13.0) (2021-11-15)
 
 
