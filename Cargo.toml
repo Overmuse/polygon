@@ -44,3 +44,11 @@ required-features = ["rest"]
 [[example]]
 name = "quotes"
 required-features = ["rest"]
+
+[[example]]
+name = "stock_dividends"
+required-features = ["rest"]
+
+[[example]]
+name = "stock_splits"
+required-features = ["rest"]
