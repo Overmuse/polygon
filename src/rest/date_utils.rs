@@ -1,7 +1,49 @@
 use super::stocks::Timespan;
-use chrono::{DateTime, Datelike, Duration, DurationRound, TimeZone, Utc};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, RoundingError};
 
-fn snap_backward(start: DateTime<Utc>, timespan: Timespan) -> DateTime<Utc> {
+const MAX_SECONDS_TIMESTAMP_FOR_NANOS: i64 = 9_223_372_036;
+
+// TODO: This is a workaround since chrono has not released updated code where duration_trunc is
+// implemented for NaiveDateTime yet, even though it is merged into the trunk. Once a new release
+// of chrono is cut, we should be able to remove this
+trait NaiveDateTimeExt {
+    fn duration_trunc(self, duration: Duration) -> Result<Self, RoundingError>
+    where
+        Self: Sized;
+}
+
+impl NaiveDateTimeExt for NaiveDateTime {
+    fn duration_trunc(self, duration: Duration) -> Result<Self, RoundingError> {
+        if let Some(span) = duration.num_nanoseconds() {
+            if self.timestamp().abs() > MAX_SECONDS_TIMESTAMP_FOR_NANOS {
+                return Err(RoundingError::TimestampExceedsLimit);
+            }
+            let stamp = self.timestamp_nanos();
+            if span > stamp.abs() {
+                return Err(RoundingError::DurationExceedsTimestamp);
+            }
+            let delta_down = stamp % span;
+            if delta_down == 0 {
+                Ok(self)
+            } else {
+                let (delta_up, delta_down) = if delta_down < 0 {
+                    (delta_down.abs(), span - delta_down.abs())
+                } else {
+                    (span - delta_down, delta_down)
+                };
+                if delta_up <= delta_down {
+                    Ok(self + Duration::nanoseconds(delta_up))
+                } else {
+                    Ok(self - Duration::nanoseconds(delta_down))
+                }
+            }
+        } else {
+            Err(RoundingError::DurationExceedsLimit)
+        }
+    }
+}
+
+fn snap_backward(start: NaiveDateTime, timespan: Timespan) -> NaiveDateTime {
     match timespan {
         Timespan::Minute => start.duration_trunc(Duration::minutes(1)).unwrap(),
         Timespan::Hour => start.duration_trunc(Duration::hours(1)).unwrap(),
@@ -10,15 +52,15 @@ fn snap_backward(start: DateTime<Utc>, timespan: Timespan) -> DateTime<Utc> {
             let start = start.duration_trunc(Duration::days(1)).unwrap();
             start - Duration::days(start.weekday().num_days_from_sunday().into())
         }
-        Timespan::Month => Utc.ymd(start.year(), start.month(), 1).and_hms(0, 0, 0),
-        Timespan::Quarter => Utc
-            .ymd(start.year(), 3 * ((start.month() - 1) / 3) + 1, 1)
-            .and_hms(0, 0, 0),
-        Timespan::Year => Utc.ymd(start.year(), 1, 1).and_hms(0, 0, 0),
+        Timespan::Month => NaiveDate::from_ymd(start.year(), start.month(), 1).and_hms(0, 0, 0),
+        Timespan::Quarter => {
+            NaiveDate::from_ymd(start.year(), 3 * ((start.month() - 1) / 3) + 1, 1).and_hms(0, 0, 0)
+        }
+        Timespan::Year => NaiveDate::from_ymd(start.year(), 1, 1).and_hms(0, 0, 0),
     }
 }
 
-pub(crate) fn snap_forward(start: DateTime<Utc>, timespan: Timespan) -> DateTime<Utc> {
+pub(crate) fn snap_forward(start: NaiveDateTime, timespan: Timespan) -> NaiveDateTime {
     match timespan {
         Timespan::Minute => {
             snap_backward(start, timespan) + Duration::minutes(1) - Duration::milliseconds(1)
@@ -34,30 +76,32 @@ pub(crate) fn snap_forward(start: DateTime<Utc>, timespan: Timespan) -> DateTime
         }
         Timespan::Month => {
             if start.month() == 12 {
-                Utc.ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0) - Duration::milliseconds(1)
+                NaiveDate::from_ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0)
+                    - Duration::milliseconds(1)
             } else {
-                Utc.ymd(start.year(), start.month() + 1, 1).and_hms(0, 0, 0)
+                NaiveDate::from_ymd(start.year(), start.month() + 1, 1).and_hms(0, 0, 0)
                     - Duration::milliseconds(1)
             }
         }
         Timespan::Quarter => {
             if [10, 11, 12].contains(&start.month()) {
-                Utc.ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0) - Duration::milliseconds(1)
+                NaiveDate::from_ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0)
+                    - Duration::milliseconds(1)
             } else {
-                Utc.ymd(start.year(), 3 * ((start.month() - 1) / 3) + 4, 1)
+                NaiveDate::from_ymd(start.year(), 3 * ((start.month() - 1) / 3) + 4, 1)
                     .and_hms(0, 0, 0)
                     - Duration::milliseconds(1)
             }
         }
         Timespan::Year => {
-            Utc.ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0) - Duration::milliseconds(1)
+            NaiveDate::from_ymd(start.year() + 1, 1, 1).and_hms(0, 0, 0) - Duration::milliseconds(1)
         }
     }
 }
 
 fn is_multiple(
-    date: DateTime<Utc>,
-    base: DateTime<Utc>,
+    date: NaiveDateTime,
+    base: NaiveDateTime,
     multiplier: u32,
     timespan: Timespan,
 ) -> bool {
@@ -86,11 +130,11 @@ fn is_multiple(
 }
 
 pub(crate) fn adjust_timeperiods(
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
     multiplier: u32,
     timespan: Timespan,
-) -> (DateTime<Utc>, DateTime<Utc>) {
+) -> (NaiveDateTime, NaiveDateTime) {
     let from = snap_backward(from, timespan);
     let mut to = snap_forward(to, timespan);
     while !is_multiple(to, from, multiplier, timespan) {
@@ -100,12 +144,12 @@ pub(crate) fn adjust_timeperiods(
 }
 
 pub(crate) fn next_pagination_date(
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
     limit: u32,
     multiplier: u32,
     timespan: Timespan,
-) -> DateTime<Utc> {
+) -> NaiveDateTime {
     let (max_periods, periods) = match timespan {
         Timespan::Minute => (limit, (to - from + Duration::microseconds(1)).num_minutes()),
         Timespan::Hour => (
@@ -163,190 +207,190 @@ mod test {
 
     #[test]
     fn test_snap_period() {
-        let start = Utc.ymd(2021, 5, 14).and_hms(1, 2, 3);
+        let start = NaiveDate::from_ymd(2021, 5, 14).and_hms(1, 2, 3);
         assert_eq!(
             snap_backward(start, Timespan::Minute),
-            Utc.ymd(2021, 5, 14).and_hms(1, 2, 0)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms(1, 2, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Minute),
-            Utc.ymd(2021, 5, 14).and_hms_milli(1, 2, 59, 999)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms_milli(1, 2, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Hour),
-            Utc.ymd(2021, 5, 14).and_hms(1, 0, 0)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms(1, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Hour),
-            Utc.ymd(2021, 5, 14).and_hms_milli(1, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms_milli(1, 59, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Day),
-            Utc.ymd(2021, 5, 14).and_hms(0, 0, 0)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms(0, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Day),
-            Utc.ymd(2021, 5, 14).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 5, 14).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Week),
-            Utc.ymd(2021, 5, 9).and_hms(0, 0, 0)
+            NaiveDate::from_ymd(2021, 5, 9).and_hms(0, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Week),
-            Utc.ymd(2021, 5, 15).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 5, 15).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Month),
-            Utc.ymd(2021, 5, 1).and_hms(0, 0, 0)
+            NaiveDate::from_ymd(2021, 5, 1).and_hms(0, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Month),
-            Utc.ymd(2021, 5, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 5, 31).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Quarter),
-            Utc.ymd(2021, 4, 1).and_hms(0, 0, 0)
+            NaiveDate::from_ymd(2021, 4, 1).and_hms(0, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Quarter),
-            Utc.ymd(2021, 6, 30).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 6, 30).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             snap_backward(start, Timespan::Year),
-            Utc.ymd(2021, 1, 1).and_hms(0, 0, 0)
+            NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0)
         );
         assert_eq!(
             snap_forward(start, Timespan::Year),
-            Utc.ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999)
         );
     }
 
     #[test]
     fn test_is_multiple() {
-        let base = Utc.ymd(2021, 1, 1).and_hms(0, 0, 0);
+        let base = NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0);
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(0, 0, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(0, 0, 59, 999),
             base,
             1,
             Timespan::Minute
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(0, 0, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(0, 0, 59, 999),
             base,
             2,
             Timespan::Minute
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(0, 1, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(0, 1, 59, 999),
             base,
             2,
             Timespan::Minute
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(0, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(0, 59, 59, 999),
             base,
             1,
             Timespan::Hour
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(0, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(0, 59, 59, 999),
             base,
             3,
             Timespan::Hour
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(2, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(2, 59, 59, 999),
             base,
             3,
             Timespan::Hour
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
             base,
             1,
             Timespan::Day
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
             base,
             4,
             Timespan::Day
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 4).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 4).and_hms_milli(23, 59, 59, 999),
             base,
             4,
             Timespan::Day
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 7).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 7).and_hms_milli(23, 59, 59, 999),
             base,
             1,
             Timespan::Week
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 1).and_hms_milli(23, 59, 59, 999),
             base,
             5,
             Timespan::Week
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 2, 4).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 2, 4).and_hms_milli(23, 59, 59, 999),
             base,
             5,
             Timespan::Week
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 1, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 31).and_hms_milli(23, 59, 59, 999),
             base,
             1,
             Timespan::Month
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 1, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 1, 31).and_hms_milli(23, 59, 59, 999),
             base,
             6,
             Timespan::Month
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 6, 30).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 6, 30).and_hms_milli(23, 59, 59, 999),
             base,
             6,
             Timespan::Month
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 3, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 3, 31).and_hms_milli(23, 59, 59, 999),
             base,
             1,
             Timespan::Quarter
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 3, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 3, 31).and_hms_milli(23, 59, 59, 999),
             base,
             7,
             Timespan::Quarter
         ));
         assert!(is_multiple(
-            Utc.ymd(2022, 9, 30).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2022, 9, 30).and_hms_milli(23, 59, 59, 999),
             base,
             7,
             Timespan::Quarter
         ));
         assert!(is_multiple(
-            Utc.ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999),
             base,
             1,
             Timespan::Year
         ));
         assert!(!is_multiple(
-            Utc.ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2021, 12, 31).and_hms_milli(23, 59, 59, 999),
             base,
             8,
             Timespan::Year
         ));
         assert!(is_multiple(
-            Utc.ymd(2028, 12, 31).and_hms_milli(23, 59, 59, 999),
+            NaiveDate::from_ymd(2028, 12, 31).and_hms_milli(23, 59, 59, 999),
             base,
             8,
             Timespan::Year
@@ -355,74 +399,74 @@ mod test {
 
     #[test]
     fn adjust_time_periods() {
-        let start = Utc.ymd(2021, 1, 1).and_hms(0, 0, 0);
-        let end = Utc.ymd(2022, 1, 1).and_hms(0, 0, 0);
+        let start = NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0);
+        let end = NaiveDate::from_ymd(2022, 1, 1).and_hms(0, 0, 0);
         assert_eq!(
             adjust_timeperiods(start, end, 1, Timespan::Minute),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2022, 1, 1).and_hms_milli(0, 0, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 1, 1).and_hms_milli(0, 0, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 2, Timespan::Hour),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2022, 1, 1).and_hms_milli(1, 59, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 1, 1).and_hms_milli(1, 59, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 3, Timespan::Day),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2022, 1, 1).and_hms_milli(23, 59, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 1, 1).and_hms_milli(23, 59, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 4, Timespan::Week),
             (
-                Utc.ymd(2020, 12, 27).and_hms(0, 0, 0),
-                Utc.ymd(2022, 1, 22).and_hms_milli(23, 59, 59, 999)
+                NaiveDate::from_ymd(2020, 12, 27).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 1, 22).and_hms_milli(23, 59, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 5, Timespan::Month),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2022, 3, 31).and_hms_milli(23, 59, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 3, 31).and_hms_milli(23, 59, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 6, Timespan::Quarter),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2022, 6, 30).and_hms_milli(23, 59, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2022, 6, 30).and_hms_milli(23, 59, 59, 999)
             )
         );
         assert_eq!(
             adjust_timeperiods(start, end, 7, Timespan::Year),
             (
-                Utc.ymd(2021, 1, 1).and_hms(0, 0, 0),
-                Utc.ymd(2027, 12, 31).and_hms_milli(23, 59, 59, 999)
+                NaiveDate::from_ymd(2021, 1, 1).and_hms(0, 0, 0),
+                NaiveDate::from_ymd(2027, 12, 31).and_hms_milli(23, 59, 59, 999)
             )
         );
     }
 
     #[test]
     fn test_next_pagination_date() {
-        let from = Utc.ymd(2023, 1, 1).and_hms(0, 0, 0);
-        let to = Utc.ymd(2032, 12, 31).and_hms_milli(23, 59, 59, 999);
+        let from = NaiveDate::from_ymd(2023, 1, 1).and_hms(0, 0, 0);
+        let to = NaiveDate::from_ymd(2032, 12, 31).and_hms_milli(23, 59, 59, 999);
         assert_eq!(
             next_pagination_date(from, to, 2, 1, Timespan::Minute),
-            Utc.ymd(2023, 1, 1).and_hms_milli(0, 1, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(0, 1, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 2, 2, Timespan::Minute),
-            Utc.ymd(2023, 1, 1).and_hms_milli(0, 1, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(0, 1, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 7, 5, Timespan::Minute),
-            Utc.ymd(2023, 1, 1).and_hms_milli(0, 4, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(0, 4, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 5270400, 1, Timespan::Minute),
@@ -430,15 +474,15 @@ mod test {
         );
         assert_eq!(
             next_pagination_date(from, to, 120, 1, Timespan::Hour),
-            Utc.ymd(2023, 1, 1).and_hms_milli(1, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(1, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 120, 2, Timespan::Hour),
-            Utc.ymd(2023, 1, 1).and_hms_milli(1, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(1, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 420, 5, Timespan::Hour),
-            Utc.ymd(2023, 1, 1).and_hms_milli(4, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 1).and_hms_milli(4, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 5270400, 1, Timespan::Hour),
@@ -446,54 +490,54 @@ mod test {
         );
         assert_eq!(
             next_pagination_date(from, to, 2, 1, Timespan::Day),
-            Utc.ymd(2023, 1, 2).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 2).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 2, 2, Timespan::Day),
-            Utc.ymd(2023, 1, 2).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 2).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 7, 5, Timespan::Day),
-            Utc.ymd(2023, 1, 5).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 5).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(next_pagination_date(from, to, 3660, 1, Timespan::Day), to);
         assert_eq!(
             next_pagination_date(from, to, 14, 1, Timespan::Week),
-            Utc.ymd(2023, 1, 14).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 14).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 14, 2, Timespan::Week),
-            Utc.ymd(2023, 1, 14).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 1, 14).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 49, 5, Timespan::Week),
-            Utc.ymd(2023, 2, 4).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 2, 4).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(next_pagination_date(from, to, 3660, 1, Timespan::Week), to);
         assert_eq!(
             next_pagination_date(from, to, 62, 1, Timespan::Month),
-            Utc.ymd(2023, 2, 28).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 2, 28).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 62, 2, Timespan::Month),
-            Utc.ymd(2023, 2, 28).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 2, 28).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 217, 5, Timespan::Month),
-            Utc.ymd(2023, 5, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 5, 31).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(next_pagination_date(from, to, 3660, 1, Timespan::Month), to);
         assert_eq!(
             next_pagination_date(from, to, 186, 1, Timespan::Quarter),
-            Utc.ymd(2023, 6, 30).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 6, 30).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 186, 2, Timespan::Quarter),
-            Utc.ymd(2023, 6, 30).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 6, 30).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 366, 3, Timespan::Quarter),
-            Utc.ymd(2023, 9, 30).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2023, 9, 30).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 3660, 1, Timespan::Quarter),
@@ -501,15 +545,15 @@ mod test {
         );
         assert_eq!(
             next_pagination_date(from, to, 732, 1, Timespan::Year),
-            Utc.ymd(2024, 12, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2024, 12, 31).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 732, 2, Timespan::Year),
-            Utc.ymd(2024, 12, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2024, 12, 31).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(
             next_pagination_date(from, to, 2562, 5, Timespan::Year),
-            Utc.ymd(2027, 12, 31).and_hms_milli(23, 59, 59, 999)
+            NaiveDate::from_ymd(2027, 12, 31).and_hms_milli(23, 59, 59, 999)
         );
         assert_eq!(next_pagination_date(from, to, 3660, 1, Timespan::Year), to);
     }

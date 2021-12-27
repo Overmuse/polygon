@@ -1,8 +1,9 @@
 use super::date_utils::*;
 use chrono::{
     serde::{ts_milliseconds, ts_nanoseconds, ts_nanoseconds_option},
-    DateTime, Duration, NaiveDate, TimeZone, Utc,
+    DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc,
 };
+use chrono_tz::US::Eastern;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -208,28 +209,28 @@ pub struct AggregateWrapper {
     pub results: Vec<Aggregate>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 /// Request aggregate bars.
 /// Note that Polygon performs time-snapping and stretching of the `from` and `to` parameters to
 /// ensure whole bars of data are returned. In order to reduce confusion, this library performs the
 /// same time-snapping and stretching before sending the raw requests.
 ///
 /// For more details, see [this Polygon blogpost](https://polygon.io/blog/aggs-api-updates/)
-pub struct GetAggregate<'a> {
+pub struct GetAggregate {
     #[serde(rename = "stocksTicker")]
-    ticker: &'a str,
+    ticker: String,
     multiplier: u32,
     timespan: Timespan,
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
     query: GetAggregateQuery,
 }
 
-impl<'a> GetAggregate<'a> {
-    pub fn new(ticker: &'a str, from: DateTime<Utc>, to: DateTime<Utc>) -> Self {
+impl GetAggregate {
+    pub fn new<T: ToString>(ticker: T, from: NaiveDateTime, to: NaiveDateTime) -> Self {
         let (from, to) = adjust_timeperiods(from, to, 1, Timespan::Day);
         Self {
-            ticker,
+            ticker: ticker.to_string(),
             multiplier: 1,
             timespan: Timespan::Day,
             from,
@@ -281,18 +282,22 @@ pub struct GetAggregateQuery {
     limit: u32,
 }
 
-impl<'a> Request for GetAggregate<'a> {
+impl Request for GetAggregate {
     type Response = AggregateWrapper;
     type Data = GetAggregateQuery;
 
     fn endpoint(&self) -> Cow<str> {
+        let from = Eastern
+            .from_local_datetime(&self.from)
+            .unwrap()
+            .timestamp_millis();
+        let to = Eastern
+            .from_local_datetime(&self.to)
+            .unwrap()
+            .timestamp_millis();
         format!(
             "v2/aggs/ticker/{}/range/{}/{}/{}/{}",
-            self.ticker,
-            self.multiplier,
-            self.timespan,
-            self.from.timestamp_millis(),
-            self.to.timestamp_millis()
+            self.ticker, self.multiplier, self.timespan, from, to
         )
         .into()
     }
@@ -304,20 +309,28 @@ impl<'a> Request for GetAggregate<'a> {
 
 #[derive(Clone)]
 pub struct AggregatePaginationData {
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
+    from: NaiveDateTime,
+    to: NaiveDateTime,
 }
 
 impl From<AggregatePaginationData> for PathModifier {
     fn from(d: AggregatePaginationData) -> PathModifier {
+        let from = Eastern
+            .from_local_datetime(&d.from)
+            .unwrap()
+            .timestamp_millis();
+        let to = Eastern
+            .from_local_datetime(&d.to)
+            .unwrap()
+            .timestamp_millis();
         let mut data = HashMap::new();
-        data.insert(7, d.from.timestamp_millis().to_string());
-        data.insert(8, d.to.timestamp_millis().to_string());
+        data.insert(7, from.to_string());
+        data.insert(8, to.to_string());
         PathModifier { data }
     }
 }
 
-impl<'a> PaginatedRequest for GetAggregate<'a> {
+impl PaginatedRequest for GetAggregate {
     type Data = AggregatePaginationData;
     type Paginator = PathPaginator<AggregateWrapper, AggregatePaginationData>;
     fn initial_page(&self) -> Option<AggregatePaginationData> {
@@ -495,7 +508,7 @@ mod test {
 
     #[tokio::test]
     async fn get_aggregate() {
-        let _aggs_mock = mock("GET", "/v2/aggs/ticker/AAPL/range/1/day/1614556800000/1614643199999")
+        let _aggs_mock = mock("GET", "/v2/aggs/ticker/AAPL/range/1/day/1614574800000/1614661199999")
             .match_query(Matcher::AllOf(vec![
                     Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()),
                     Matcher::UrlEncoded("unadjusted".into(), "false".into()),
@@ -509,8 +522,8 @@ mod test {
         let client = client_with_url(&url, "TOKEN");
         let req = GetAggregate::new(
             "AAPL",
-            Utc.from_utc_datetime(&NaiveDate::from_ymd(2021, 3, 1).and_hms(0, 0, 0)),
-            Utc.from_utc_datetime(&NaiveDate::from_ymd(2021, 3, 1).and_hms(0, 0, 0)),
+            NaiveDate::from_ymd(2021, 3, 1).and_hms(0, 0, 0),
+            NaiveDate::from_ymd(2021, 3, 1).and_hms(0, 0, 0),
         );
         client.send(&req).await.unwrap();
     }
@@ -533,7 +546,7 @@ mod test {
     //     use futures::StreamExt;
     //     let _m = mock("GET", "/v2/ticks/stocks/nbbo/AAPL/2021-03-01")
     //         .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
-    //         .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
+    //         .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0},{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
 
     //     let url = mockito::server_url();
 

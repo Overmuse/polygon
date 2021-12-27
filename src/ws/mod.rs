@@ -23,8 +23,7 @@ impl<T: Stream<Item = TungsteniteResult> + Unpin> Stream for WebSocket<T> {
     type Item = Result<PolygonMessage>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        if !self.buffer.is_empty() {
-            let message = self.buffer.pop_front().expect("Guaranteed to be non-empty");
+        if let Some(message) = self.buffer.pop_front() {
             return Poll::Ready(Some(Ok(message)));
         }
         match ready!(Pin::new(&mut self.inner).poll_next(cx)) {
