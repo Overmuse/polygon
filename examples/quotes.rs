@@ -14,7 +14,6 @@ async fn main() {
         .send_paginated(&req)
         .map_ok(|x| x.results)
         .try_flatten_iters()
-        .take(10)
         .for_each(|x| async move { println!("{:?}", x) })
         .await;
 }

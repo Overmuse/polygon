@@ -541,21 +541,21 @@ mod test {
         client.send(&req).await.unwrap();
     }
 
-    // #[tokio::test]
-    // async fn get_quotes_paginated() {
-    //     use futures::StreamExt;
-    //     let _m = mock("GET", "/v2/ticks/stocks/nbbo/AAPL/2021-03-01")
-    //         .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
-    //         .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0},{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
+    //#[tokio::test]
+    //async fn get_quotes_paginated() {
+    //    use futures::StreamExt;
+    //    let _m = mock("GET", "/v2/ticks/stocks/nbbo/AAPL/2021-03-01")
+    //        .match_query(Matcher::UrlEncoded("apiKey".into(), "TOKEN".into()))
+    //        .with_body(r#"{"ticker":"AAPL","success":true,"results_count":2,"db_latency":43,"results":[{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0},{"t":1517562000065700400,"y":1517562000065321200,"q":2060,"c":[1],"z":3,"p":102.7,"s":60,"x":11,"P":0,"S":0,"X":0}]}"#).create();
 
-    //     let url = mockito::server_url();
+    //    let url = mockito::server_url();
 
-    //     let client = client_with_url(&url, "TOKEN");
-    //     let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
-    //     let mut stream = client.send_paginated(&req);
-    //     stream.next().await.unwrap().unwrap();
-    //     stream.next().await.unwrap().unwrap();
-    // }
+    //    let client = client_with_url(&url, "TOKEN");
+    //    let req = GetQuotes::new("AAPL", NaiveDate::from_ymd(2021, 3, 1)).reverse(false);
+    //    let mut stream = client.send_paginated(&req);
+    //    stream.next().await.unwrap().unwrap();
+    //    stream.next().await.unwrap().unwrap();
+    //}
 
     #[tokio::test]
     async fn get_ticker_snapshot() {

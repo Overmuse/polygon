@@ -13,24 +13,26 @@ async fn main() {
         "GE",
         NaiveDate::from_ymd(2011, 11, 5).and_hms(0, 0, 0),
         NaiveDate::from_ymd(2021, 11, 5).and_hms(0, 0, 0),
-    )
-    .limit(1);
+    );
     let req2 = GetAggregate::new(
         "AAPL",
         NaiveDate::from_ymd(2011, 11, 5).and_hms(0, 0, 0),
         NaiveDate::from_ymd(2021, 11, 5).and_hms(0, 0, 0),
-    )
-    .limit(1);
+    );
     let reqs = [req1, req2];
 
-    futures::stream::select_all(client.send_all_paginated(&reqs).map(|stream| {
-        stream
+    futures::stream::select_all(reqs.iter().map(|req| {
+        client
+            .send_paginated(req)
             .map_ok(|x| {
+                // Polygon aggregates don't have tickers associated with them, so we clone the
+                // ticker as well and return it with each aggregate. That way, we can send the
+                // requests in parallel but still know which ticker each aggregate is associated
+                // with.
                 let ticker = x.ticker.clone();
                 x.results.into_iter().map(move |r| (ticker.clone(), r))
             })
             .try_flatten_iters()
-            .take(10)
     }))
     .for_each_concurrent(None, |x| async move { println!("{:?}", x) })
     .await;
